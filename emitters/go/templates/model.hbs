@@ -1,0 +1,17 @@
+package learn
+
+{{#if (needsTimeImport model)}}
+import "time"
+{{/if}}
+
+{{#if model.description}}
+// {{model.name}} {{singleLine model.description}}
+{{/if}}
+type {{model.name}} struct {
+{{#each model.properties}}
+	{{#if description}}
+	// {{singleLine description}}
+	{{/if}}
+	{{PascalCase name}} {{#if required}}{{goType type}}{{else}}{{goPointerType type}}{{/if}} {{{goTag name}}}
+{{/each}}
+}

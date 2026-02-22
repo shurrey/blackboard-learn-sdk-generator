@@ -1,0 +1,43 @@
+# frozen_string_literal: true
+
+require "spec_helper"
+require "{{gemName}}/resources/{{snakeCase resource.name}}"
+
+RSpec.describe {{moduleName}}::{{PascalCase resource.name}}Resource do
+  let(:mock_client) { instance_double({{moduleName}}::HttpClient) }
+  subject(:resource) { described_class.new(mock_client) }
+
+  before do
+    allow(mock_client).to receive(:get).and_return({})
+    allow(mock_client).to receive(:post).and_return({})
+    allow(mock_client).to receive(:put).and_return({})
+    allow(mock_client).to receive(:patch).and_return({})
+    allow(mock_client).to receive(:delete).and_return(nil)
+  end
+
+{{#each resource.methods}}
+  {{#unless paginated}}
+  describe "#{{snakeCase name}}" do
+    it "sends the correct request" do
+      {{#if (eq (lowercase httpMethod) "get")}}
+      resource.{{snakeCase name}}({{#each pathParams}}"test-id"{{#unless @last}}, {{/unless}}{{/each}})
+      expect(mock_client).to have_received(:get).once
+      {{else if (eq (lowercase httpMethod) "post")}}
+      resource.{{snakeCase name}}({{#each pathParams}}"test-id", {{/each}}{{#ifHasBody this}}body: {}{{/ifHasBody}})
+      expect(mock_client).to have_received(:post).once
+      {{else if (eq (lowercase httpMethod) "put")}}
+      resource.{{snakeCase name}}({{#each pathParams}}"test-id", {{/each}}{{#ifHasBody this}}body: {}{{/ifHasBody}})
+      expect(mock_client).to have_received(:put).once
+      {{else if (eq (lowercase httpMethod) "patch")}}
+      resource.{{snakeCase name}}({{#each pathParams}}"test-id", {{/each}}{{#ifHasBody this}}body: {}{{/ifHasBody}})
+      expect(mock_client).to have_received(:patch).once
+      {{else if (eq (lowercase httpMethod) "delete")}}
+      resource.{{snakeCase name}}({{#each pathParams}}"test-id"{{#unless @last}}, {{/unless}}{{/each}})
+      expect(mock_client).to have_received(:delete).once
+      {{/if}}
+    end
+  end
+  {{/unless}}
+
+{{/each}}
+end

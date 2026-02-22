@@ -1,0 +1,107 @@
+/**
+ * Auto-pagination support.
+ * Transparently iterates across all pages of paginated endpoints.
+ *
+ * Auto-generated — do not edit manually.
+ */
+
+import type { HttpClient } from './http-client.js';
+
+interface PaginatedResponse<T> {
+  results: T[];
+  paging?: {
+    nextPage?: string;
+  };
+}
+
+/**
+ * Create an AsyncIterable that transparently pages through all results.
+ *
+ * Usage:
+ * ```ts
+ * for await (const course of client.courses.list()) {
+ *   console.log(course.name);
+ * }
+ * ```
+ */
+export function paginate<T>(
+  client: HttpClient,
+  path: string,
+  params: Record<string, any> = {},
+  limit: number = {{pagination.defaultLimit}}
+): AsyncIterable<T> {
+  return {
+    [Symbol.asyncIterator]() {
+      let offset = 0;
+      let nextPageUrl: string | null = null;
+      let done = false;
+      let buffer: T[] = [];
+      let bufferIndex = 0;
+
+      return {
+        async next(): Promise<IteratorResult<T>> {
+          // Return from buffer first
+          if (bufferIndex < buffer.length) {
+            return { value: buffer[bufferIndex++], done: false };
+          }
+
+          if (done) {
+            return { value: undefined, done: true };
+          }
+
+          // Fetch next page
+          let response: Response;
+          if (nextPageUrl) {
+            response = await client.rawRequest('GET', nextPageUrl);
+          } else {
+            const { pathParams, ...queryParams } = params;
+            let url = path;
+            if (pathParams) {
+              for (const [key, value] of Object.entries(pathParams as Record<string, string>)) {
+                url = url.replace(`{${key}}`, encodeURIComponent(value));
+              }
+            }
+            response = await client.rawRequest('GET', url, {
+              queryParams: { ...queryParams, offset, limit },
+            });
+          }
+
+          if (!response.ok) {
+            throw new Error(`Pagination request failed: ${response.status}`);
+          }
+
+          const data: PaginatedResponse<T> = await response.json();
+
+          if (!data.results || data.results.length === 0) {
+            done = true;
+            return { value: undefined, done: true };
+          }
+
+          buffer = data.results;
+          bufferIndex = 1; // We'll return the first item below
+
+          if (data.paging?.nextPage) {
+            nextPageUrl = data.paging.nextPage;
+          } else {
+            done = true;
+          }
+
+          offset += data.results.length;
+
+          return { value: buffer[0], done: false };
+        },
+      };
+    },
+  };
+}
+
+/**
+ * Collect all results from a paginated endpoint into an array.
+ */
+export async function collectAll<T>(iterable: AsyncIterable<T>): Promise<T[]> {
+  const results: T[] = [];
+  for await (const item of iterable) {
+    results.push(item);
+  }
+  return results;
+}

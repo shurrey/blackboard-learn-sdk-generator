@@ -1,0 +1,21 @@
+# frozen_string_literal: true
+
+Gem::Specification.new do |spec|
+  spec.name = "{{gemName}}"
+  spec.version = "{{metadata.version}}"
+  spec.authors = ["Blackboard"]
+  spec.summary = "Ruby SDK for the Blackboard Learn REST API"
+  spec.description = "A Ruby SDK providing a convenient interface to the Blackboard Learn REST API."
+  spec.homepage = "https://github.com/blackboard/learn-ruby"
+  spec.license = "{{metadata.license}}"
+  spec.required_ruby_version = ">= {{langConfig.minVersion}}"
+
+  spec.files = Dir["lib/**/*", "LICENSE", "README.md"]
+  spec.require_paths = ["lib"]
+
+  spec.add_dependency "faraday", ">= 2.0"
+  spec.add_dependency "faraday-retry", ">= 2.0"
+  spec.add_dependency "base64", ">= 0.2"
+
+  spec.add_development_dependency "rspec", "~> 3.13"
+end

@@ -1,0 +1,68 @@
+package {{basePackage}}.errors;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+/**
+ * Base API error class for Blackboard Learn REST API errors.
+ *
+ * <p>Auto-generated — do not edit manually.</p>
+ */
+public class APIError extends RuntimeException {
+
+    private final int status;
+    private final String responseBody;
+
+    public APIError(String message, int status, String responseBody) {
+        super(message);
+        this.status = status;
+        this.responseBody = responseBody;
+    }
+
+    public int getStatus() { return status; }
+    public String getResponseBody() { return responseBody; }
+
+    public static APIError fromResponse(int statusCode, String body) {
+        String message;
+        try {
+            var mapper = new ObjectMapper();
+            var tree = mapper.readTree(body);
+            message = tree.has("message") ? tree.get("message").asText() : body;
+        } catch (Exception e) {
+            message = body;
+        }
+
+        return switch (statusCode) {
+            case 400 -> new BadRequestError(message, statusCode, body);
+            case 401 -> new AuthenticationError(message, statusCode, body);
+            case 403 -> new PermissionError(message, statusCode, body);
+            case 404 -> new NotFoundError(message, statusCode, body);
+            case 409 -> new ConflictError(message, statusCode, body);
+            case 429 -> new RateLimitError(message, statusCode, body);
+            default -> new APIError(message, statusCode, body);
+        };
+    }
+}
+
+class BadRequestError extends APIError {
+    public BadRequestError(String message, int status, String body) { super(message, status, body); }
+}
+
+class AuthenticationError extends APIError {
+    public AuthenticationError(String message, int status, String body) { super(message, status, body); }
+}
+
+class PermissionError extends APIError {
+    public PermissionError(String message, int status, String body) { super(message, status, body); }
+}
+
+class NotFoundError extends APIError {
+    public NotFoundError(String message, int status, String body) { super(message, status, body); }
+}
+
+class ConflictError extends APIError {
+    public ConflictError(String message, int status, String body) { super(message, status, body); }
+}
+
+class RateLimitError extends APIError {
+    public RateLimitError(String message, int status, String body) { super(message, status, body); }
+}

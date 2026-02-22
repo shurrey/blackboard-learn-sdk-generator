@@ -1,0 +1,95 @@
+package learn
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+	"sync"
+	"time"
+)
+
+// OAuth2Client handles OAuth 2.0 authentication.
+type OAuth2Client struct {
+	baseURL       string
+	clientID      string
+	clientSecret  string
+	tokenEndpoint string
+	httpClient    *http.Client
+
+	mu          sync.Mutex
+	accessToken string
+	tokenExpiry time.Time
+}
+
+type tokenResponse struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	ExpiresIn   int    `json:"expires_in"`
+}
+
+// NewOAuth2Client creates a new OAuth2Client.
+func NewOAuth2Client(baseURL, clientID, clientSecret, tokenEndpoint string) *OAuth2Client {
+	return &OAuth2Client{
+		baseURL:       strings.TrimRight(baseURL, "/"),
+		clientID:      clientID,
+		clientSecret:  clientSecret,
+		tokenEndpoint: tokenEndpoint,
+		httpClient:    &http.Client{Timeout: 30 * time.Second},
+	}
+}
+
+// SetAccessToken sets an externally obtained access token.
+func (o *OAuth2Client) SetAccessToken(token string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.accessToken = token
+	o.tokenExpiry = time.Now().Add(time.Hour)
+}
+
+// GetToken returns a valid access token, refreshing if needed.
+func (o *OAuth2Client) GetToken(ctx context.Context) (string, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	if o.accessToken != "" && time.Now().Before(o.tokenExpiry.Add(-time.Minute)) {
+		return o.accessToken, nil
+	}
+
+	return o.fetchToken(ctx)
+}
+
+func (o *OAuth2Client) fetchToken(ctx context.Context) (string, error) {
+	data := url.Values{"grant_type": {"client_credentials"}}
+	credentials := base64.StdEncoding.EncodeToString([]byte(o.clientID + ":" + o.clientSecret))
+
+	req, err := http.NewRequestWithContext(ctx, "POST", o.baseURL+o.tokenEndpoint, strings.NewReader(data.Encode()))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Authorization", "Basic "+credentials)
+
+	resp, err := o.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("token request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("token request failed with status %d", resp.StatusCode)
+	}
+
+	var tokenResp tokenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		return "", fmt.Errorf("failed to decode token response: %w", err)
+	}
+
+	o.accessToken = tokenResp.AccessToken
+	o.tokenExpiry = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
+
+	return o.accessToken, nil
+}

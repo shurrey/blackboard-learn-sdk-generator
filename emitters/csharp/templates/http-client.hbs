@@ -1,0 +1,128 @@
+using System;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+
+namespace {{namespace}};
+
+/// <summary>HTTP client with retry, rate limiting, and error handling.</summary>
+public class LearnHttpClient : IDisposable
+{
+    private readonly string _baseUrl;
+    private readonly TimeSpan _timeout;
+    private readonly int _maxRetries;
+    private readonly OAuth2Client _authClient;
+    private readonly HttpClient _httpClient;
+    private readonly JsonSerializerOptions _jsonOptions;
+
+    private static readonly HashSet<HttpStatusCode> RetryStatusCodes = new()
+    {
+        HttpStatusCode.TooManyRequests,
+        HttpStatusCode.InternalServerError,
+        HttpStatusCode.BadGateway,
+        HttpStatusCode.ServiceUnavailable,
+        HttpStatusCode.GatewayTimeout
+    };
+
+    protected LearnHttpClient() { _jsonOptions = new(); }
+
+    public LearnHttpClient(string baseUrl, TimeSpan timeout, int maxRetries, OAuth2Client authClient)
+    {
+        _baseUrl = baseUrl.TrimEnd('/');
+        _timeout = timeout;
+        _maxRetries = maxRetries;
+        _authClient = authClient;
+        _httpClient = new HttpClient { Timeout = timeout };
+        _jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            PropertyNameCaseInsensitive = true,
+        };
+    }
+
+    public virtual async Task<T> GetAsync<T>(string path, Dictionary<string, string> pathParams, CancellationToken ct = default)
+        => await RequestAsync<T>(HttpMethod.Get, path, pathParams, null, ct);
+
+    public virtual async Task<T> PostAsync<T>(string path, Dictionary<string, string> pathParams, object? body, CancellationToken ct = default)
+        => await RequestAsync<T>(HttpMethod.Post, path, pathParams, body, ct);
+
+    public virtual async Task<T> PutAsync<T>(string path, Dictionary<string, string> pathParams, object? body, CancellationToken ct = default)
+        => await RequestAsync<T>(HttpMethod.Put, path, pathParams, body, ct);
+
+    public virtual async Task<T> PatchAsync<T>(string path, Dictionary<string, string> pathParams, object? body, CancellationToken ct = default)
+        => await RequestAsync<T>(HttpMethod.Patch, path, pathParams, body, ct);
+
+    public virtual async Task DeleteAsync(string path, Dictionary<string, string> pathParams, CancellationToken ct = default)
+        => await RequestAsync<object>(HttpMethod.Delete, path, pathParams, null, ct);
+
+    public async Task<HttpResponseMessage> RawRequestAsync(HttpMethod method, string url, CancellationToken ct = default)
+    {
+        var token = await _authClient.GetTokenAsync();
+        var request = new HttpRequestMessage(method, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        return await _httpClient.SendAsync(request, ct);
+    }
+
+    private async Task<T> RequestAsync<T>(HttpMethod method, string path, Dictionary<string, string> pathParams, object? body, CancellationToken ct)
+    {
+        var url = BuildUrl(path, pathParams);
+        var random = new Random();
+
+        for (int attempt = 0; attempt <= _maxRetries; attempt++)
+        {
+            var token = await _authClient.GetTokenAsync();
+            var request = new HttpRequestMessage(method, url);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            if (body != null)
+            {
+                var json = JsonSerializer.Serialize(body, _jsonOptions);
+                request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+            }
+
+            var response = await _httpClient.SendAsync(request, ct);
+
+            if (response.IsSuccessStatusCode)
+            {
+                if (response.StatusCode == HttpStatusCode.NoContent)
+                    return default!;
+                var content = await response.Content.ReadAsStringAsync(ct);
+                return JsonSerializer.Deserialize<T>(content, _jsonOptions)!;
+            }
+
+            if (!RetryStatusCodes.Contains(response.StatusCode) || attempt == _maxRetries)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
+                throw APIError.FromResponse((int)response.StatusCode, errorBody);
+            }
+
+            var delay = Math.Min(500 * (int)Math.Pow(2, attempt) + random.Next(100), 30000);
+            await Task.Delay(delay, ct);
+        }
+
+        throw new InvalidOperationException("Unreachable");
+    }
+
+    private string BuildUrl(string path, Dictionary<string, string> pathParams)
+    {
+        var url = path;
+        foreach (var (key, value) in pathParams)
+            url = url.Replace($"{{{key}}}", Uri.EscapeDataString(value));
+        return url.StartsWith("http") ? url : _baseUrl + url;
+    }
+
+    public string BaseUrl => _baseUrl;
+
+    public void Dispose()
+    {
+        _httpClient.Dispose();
+        GC.SuppressFinalize(this);
+    }
+}

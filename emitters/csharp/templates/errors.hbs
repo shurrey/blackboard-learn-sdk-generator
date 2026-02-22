@@ -1,0 +1,70 @@
+using System;
+using System.Text.Json;
+
+namespace {{namespace}};
+
+/// <summary>Base API error for Blackboard Learn REST API.</summary>
+public class APIError : Exception
+{
+    public int Status { get; }
+    public string? ResponseBody { get; }
+
+    public APIError(string message, int status, string? responseBody = null)
+        : base(message)
+    {
+        Status = status;
+        ResponseBody = responseBody;
+    }
+
+    public static APIError FromResponse(int statusCode, string body)
+    {
+        string message;
+        try
+        {
+            var doc = JsonDocument.Parse(body);
+            message = doc.RootElement.TryGetProperty("message", out var msg) ? msg.GetString()! : body;
+        }
+        catch { message = body; }
+
+        return statusCode switch
+        {
+            400 => new BadRequestError(message, statusCode, body),
+            401 => new AuthenticationError(message, statusCode, body),
+            403 => new PermissionError(message, statusCode, body),
+            404 => new NotFoundError(message, statusCode, body),
+            409 => new ConflictError(message, statusCode, body),
+            429 => new RateLimitError(message, statusCode, body),
+            _ => new APIError(message, statusCode, body)
+        };
+    }
+}
+
+public class BadRequestError : APIError
+{
+    public BadRequestError(string message, int status, string? body = null) : base(message, status, body) { }
+}
+
+public class AuthenticationError : APIError
+{
+    public AuthenticationError(string message, int status, string? body = null) : base(message, status, body) { }
+}
+
+public class PermissionError : APIError
+{
+    public PermissionError(string message, int status, string? body = null) : base(message, status, body) { }
+}
+
+public class NotFoundError : APIError
+{
+    public NotFoundError(string message, int status, string? body = null) : base(message, status, body) { }
+}
+
+public class ConflictError : APIError
+{
+    public ConflictError(string message, int status, string? body = null) : base(message, status, body) { }
+}
+
+public class RateLimitError : APIError
+{
+    public RateLimitError(string message, int status, string? body = null) : base(message, status, body) { }
+}

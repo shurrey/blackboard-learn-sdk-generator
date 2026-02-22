@@ -1,0 +1,76 @@
+package learn
+
+import (
+	"context"
+	"fmt"
+	"iter"
+)
+
+// {{PascalCase resource.name}}Resource provides access to {{resource.name}} endpoints.
+type {{PascalCase resource.name}}Resource struct {
+	client *HTTPClient
+{{#each resource.subresources}}
+	{{PascalCase name}} *{{PascalCase name}}Resource
+{{/each}}
+}
+
+// New{{PascalCase resource.name}}Resource creates a new {{PascalCase resource.name}}Resource.
+func New{{PascalCase resource.name}}Resource(client *HTTPClient) *{{PascalCase resource.name}}Resource {
+	r := &{{PascalCase resource.name}}Resource{client: client}
+{{#each resource.subresources}}
+	r.{{PascalCase name}} = New{{PascalCase name}}Resource(client)
+{{/each}}
+	return r
+}
+
+{{#each resource.methods}}
+{{#if description}}
+// {{PascalCase name}} {{singleLine description}}
+{{/if}}
+{{#ifPaginated this}}
+func (r *{{PascalCase ../resource.name}}Resource) {{PascalCase name}}({{goMethodParams this}}) iter.Seq2[{{goType paginationConfig.itemType}}, error] {
+	pathParams := map[string]string{
+		{{#each pathParams}}
+		"{{name}}": {{camelCase name}},
+		{{/each}}
+	}
+	return Paginate[{{goType paginationConfig.itemType}}](ctx, r.client, "{{{path}}}", pathParams)
+}
+{{else}}
+func (r *{{PascalCase ../resource.name}}Resource) {{PascalCase name}}({{goMethodParams this}}) {{goReturnType this}} {
+	pathParams := map[string]string{
+		{{#each pathParams}}
+		"{{name}}": fmt.Sprintf("%v", {{camelCase name}}),
+		{{/each}}
+	}
+	{{#if (eq (lowercase httpMethod) "delete")}}
+	return r.client.Delete(ctx, "{{{path}}}", pathParams)
+	{{else if (eq (lowercase httpMethod) "get")}}
+	{{#if (isVoid response.type)}}
+	return r.client.Get(ctx, "{{{path}}}", pathParams, nil)
+	{{else}}
+	var result {{goType response.type}}
+	err := r.client.Get(ctx, "{{{path}}}", pathParams, &result)
+	return &result, err
+	{{/if}}
+	{{else if (eq (lowercase httpMethod) "post")}}
+	{{#if (isVoid response.type)}}
+	return r.client.Post(ctx, "{{{path}}}", pathParams, {{#ifHasBody this}}body{{else}}nil{{/ifHasBody}}, nil)
+	{{else}}
+	var result {{goType response.type}}
+	err := r.client.Post(ctx, "{{{path}}}", pathParams, {{#ifHasBody this}}body{{else}}nil{{/ifHasBody}}, &result)
+	return &result, err
+	{{/if}}
+	{{else if (or (eq (lowercase httpMethod) "put") (eq (lowercase httpMethod) "patch"))}}
+	{{#if (isVoid response.type)}}
+	return r.client.{{PascalCase (lowercase httpMethod)}}(ctx, "{{{path}}}", pathParams, {{#ifHasBody this}}body{{else}}nil{{/ifHasBody}}, nil)
+	{{else}}
+	var result {{goType response.type}}
+	err := r.client.{{PascalCase (lowercase httpMethod)}}(ctx, "{{{path}}}", pathParams, {{#ifHasBody this}}body{{else}}nil{{/ifHasBody}}, &result)
+	return &result, err
+	{{/if}}
+	{{/if}}
+}
+{{/ifPaginated}}
+
+{{/each}}

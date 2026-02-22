@@ -1,0 +1,69 @@
+using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+using System.Threading;
+
+namespace {{namespace}};
+
+/// <summary>Auto-pagination support using IAsyncEnumerable.</summary>
+public static class Paginator
+{
+    public static async IAsyncEnumerable<T> PaginateAsync<T>(
+        LearnHttpClient client,
+        string path,
+        Dictionary<string, string> pathParams,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default,
+        int limit = {{pagination.defaultLimit}})
+    {
+        int offset = 0;
+        string? nextPageUrl = null;
+
+        while (true)
+        {
+            string url;
+            if (nextPageUrl != null)
+            {
+                url = nextPageUrl;
+            }
+            else
+            {
+                var resolvedPath = path;
+                foreach (var (key, value) in pathParams)
+                    resolvedPath = resolvedPath.Replace($"{{{key}}}", Uri.EscapeDataString(value));
+                url = $"{client.BaseUrl}{resolvedPath}?offset={offset}&limit={limit}";
+            }
+
+            var response = await client.RawRequestAsync(System.Net.Http.HttpMethod.Get, url, cancellationToken);
+            if (!response.IsSuccessStatusCode) yield break;
+
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            var doc = JsonDocument.Parse(json);
+
+            if (!doc.RootElement.TryGetProperty("results", out var results))
+                yield break;
+
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            foreach (var item in results.EnumerateArray())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return JsonSerializer.Deserialize<T>(item.GetRawText(), options)!;
+            }
+
+            if (results.GetArrayLength() == 0) yield break;
+
+            offset += results.GetArrayLength();
+
+            if (doc.RootElement.TryGetProperty("paging", out var paging) &&
+                paging.TryGetProperty("nextPage", out var nextPage))
+            {
+                var next = nextPage.GetString()!;
+                nextPageUrl = next.StartsWith("http") ? next : client.BaseUrl + next;
+            }
+            else
+            {
+                yield break;
+            }
+        }
+    }
+}

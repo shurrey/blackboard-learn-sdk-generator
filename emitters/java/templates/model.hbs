@@ -1,0 +1,39 @@
+package {{basePackage}}.types;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.*;
+import java.time.OffsetDateTime;
+
+{{#if model.description}}
+/** {{model.description}} */
+{{/if}}
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class {{model.name}} {
+
+{{#each model.properties}}
+    @JsonProperty("{{name}}")
+    private {{javaType type}} {{camelCase name}};
+
+{{/each}}
+    public {{model.name}}() {}
+
+{{#each model.properties}}
+    {{#if description}}
+    /** {{description}} */
+    {{/if}}
+    public {{javaType type}} get{{PascalCase name}}() {
+        return this.{{camelCase name}};
+    }
+
+    public void set{{PascalCase name}}({{javaType type}} {{camelCase name}}) {
+        this.{{camelCase name}} = {{camelCase name}};
+    }
+
+    public {{../model.name}} {{camelCase name}}({{javaType type}} {{camelCase name}}) {
+        this.{{camelCase name}} = {{camelCase name}};
+        return this;
+    }
+
+{{/each}}
+}

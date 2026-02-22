@@ -1,0 +1,84 @@
+package learn
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func TestNew{{PascalCase resource.name}}Resource(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("{}"))
+	}))
+	defer server.Close()
+
+	client := &HTTPClient{baseURL: server.URL, httpClient: server.Client()}
+	resource := New{{PascalCase resource.name}}Resource(client)
+
+	if resource == nil {
+		t.Fatal("expected non-nil resource")
+	}
+	if resource.client != client {
+		t.Fatal("expected resource to reference the provided client")
+	}
+}
+
+{{#each resource.methods}}
+{{#unless paginated}}
+func Test{{PascalCase ../resource.name}}Resource_{{PascalCase name}}(t *testing.T) {
+	var called bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		{{#if (eq (lowercase httpMethod) "get")}}
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		{{else if (eq (lowercase httpMethod) "post")}}
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		{{else if (eq (lowercase httpMethod) "put")}}
+		if r.Method != http.MethodPut {
+			t.Errorf("expected PUT, got %s", r.Method)
+		}
+		{{else if (eq (lowercase httpMethod) "patch")}}
+		if r.Method != http.MethodPatch {
+			t.Errorf("expected PATCH, got %s", r.Method)
+		}
+		{{else if (eq (lowercase httpMethod) "delete")}}
+		if r.Method != http.MethodDelete {
+			t.Errorf("expected DELETE, got %s", r.Method)
+		}
+		{{/if}}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		{{#if (eq (lowercase httpMethod) "delete")}}
+		w.Write([]byte(""))
+		{{else}}
+		w.Write([]byte("{}"))
+		{{/if}}
+	}))
+	defer server.Close()
+
+	client := &HTTPClient{baseURL: server.URL, httpClient: server.Client()}
+	resource := New{{PascalCase ../resource.name}}Resource(client)
+	ctx := context.Background()
+
+	{{#if (eq (lowercase httpMethod) "delete")}}
+	_ = resource.{{PascalCase name}}(ctx{{#each pathParams}}, {{goTestValue this}}{{/each}}{{#ifHasBody this}}, nil{{/ifHasBody}})
+	{{else if (isVoid response.type)}}
+	_ = resource.{{PascalCase name}}(ctx{{#each pathParams}}, {{goTestValue this}}{{/each}}{{#ifHasBody this}}, nil{{/ifHasBody}})
+	{{else}}
+	_, _ = resource.{{PascalCase name}}(ctx{{#each pathParams}}, {{goTestValue this}}{{/each}}{{#ifHasBody this}}, nil{{/ifHasBody}})
+	{{/if}}
+
+	if !called {
+		t.Error("expected HTTP request to be made")
+	}
+}
+{{/unless}}
+
+{{/each}}

@@ -1,0 +1,79 @@
+using System;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+
+namespace {{namespace}};
+
+/// <summary>OAuth 2.0 client for Blackboard Learn.</summary>
+public class OAuth2Client
+{
+    private readonly string _baseUrl;
+    private readonly string _clientId;
+    private readonly string _clientSecret;
+    private readonly string _tokenEndpoint;
+    private readonly HttpClient _httpClient;
+    private readonly SemaphoreSlim _lock = new(1, 1);
+
+    private string? _accessToken;
+    private DateTimeOffset _tokenExpiry;
+
+    public OAuth2Client(string baseUrl, string clientId, string clientSecret, string tokenEndpoint)
+    {
+        _baseUrl = baseUrl.TrimEnd('/');
+        _clientId = clientId;
+        _clientSecret = clientSecret;
+        _tokenEndpoint = tokenEndpoint;
+        _httpClient = new HttpClient();
+    }
+
+    public void SetAccessToken(string token)
+    {
+        _accessToken = token;
+        _tokenExpiry = DateTimeOffset.UtcNow.AddHours(1);
+    }
+
+    public async Task<string> GetTokenAsync()
+    {
+        if (_accessToken != null && DateTimeOffset.UtcNow < _tokenExpiry.AddMinutes(-1))
+            return _accessToken;
+
+        await _lock.WaitAsync();
+        try
+        {
+            if (_accessToken != null && DateTimeOffset.UtcNow < _tokenExpiry.AddMinutes(-1))
+                return _accessToken;
+
+            return await FetchTokenAsync();
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    private async Task<string> FetchTokenAsync()
+    {
+        var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_clientId}:{_clientSecret}"));
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}{_tokenEndpoint}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
+        request.Content = new FormUrlEncodedContent(new[]
+        {
+            new KeyValuePair<string, string>("grant_type", "client_credentials")
+        });
+
+        var response = await _httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException($"OAuth2 token request failed: {response.StatusCode}");
+
+        var json = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(json);
+        _accessToken = doc.RootElement.GetProperty("access_token").GetString()!;
+        var expiresIn = doc.RootElement.GetProperty("expires_in").GetInt32();
+        _tokenExpiry = DateTimeOffset.UtcNow.AddSeconds(expiresIn);
+
+        return _accessToken;
+    }
+}

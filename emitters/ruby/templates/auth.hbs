@@ -1,0 +1,60 @@
+# frozen_string_literal: true
+
+require "faraday"
+require "base64"
+require "json"
+
+module {{moduleName}}
+  # OAuth 2.0 client for Blackboard Learn.
+  class OAuth2Client
+    def initialize(base_url:, client_id:, client_secret:, token_endpoint:)
+      @base_url = base_url.chomp("/")
+      @client_id = client_id
+      @client_secret = client_secret
+      @token_endpoint = token_endpoint
+      @access_token = nil
+      @token_expiry = nil
+      @mutex = Mutex.new
+      @conn = Faraday.new(url: @base_url)
+    end
+
+    # Set an externally obtained access token.
+    def set_access_token(token)
+      @mutex.synchronize do
+        @access_token = token
+        @token_expiry = Time.now + 3600
+      end
+    end
+
+    # Get a valid access token, refreshing if needed.
+    def get_token
+      @mutex.synchronize do
+        if @access_token && @token_expiry && Time.now < @token_expiry - 60
+          return @access_token
+        end
+
+        fetch_token
+      end
+    end
+
+    private
+
+    def fetch_token
+      credentials = Base64.strict_encode64("#{@client_id}:#{@client_secret}")
+
+      response = @conn.post(@token_endpoint) do |req|
+        req.headers["Content-Type"] = "application/x-www-form-urlencoded"
+        req.headers["Authorization"] = "Basic #{credentials}"
+        req.body = "grant_type=client_credentials"
+      end
+
+      raise "OAuth2 token request failed: #{response.status}" unless response.success?
+
+      data = JSON.parse(response.body)
+      @access_token = data["access_token"]
+      @token_expiry = Time.now + data["expires_in"]
+
+      @access_token
+    end
+  end
+end

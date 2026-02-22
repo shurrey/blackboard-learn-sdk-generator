@@ -1,0 +1,154 @@
+package {{basePackage}};
+
+import {{basePackage}}.errors.APIError;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
+
+/**
+ * HTTP client with retry, rate limiting, and error handling.
+ *
+ * <p>Auto-generated — do not edit manually.</p>
+ */
+public class HttpClient {
+
+    private final String baseUrl;
+    private final int timeout;
+    private final int maxRetries;
+    private final OAuth2Client authClient;
+    private final java.net.http.HttpClient httpClient;
+    private final ObjectMapper mapper;
+
+    private static final Set<Integer> RETRY_STATUS_CODES = Set.of(429, 500, 502, 503, 504);
+    private static final long INITIAL_RETRY_DELAY = 500L;
+    private static final long MAX_RETRY_DELAY = 30000L;
+
+    public HttpClient(String baseUrl, int timeout, int maxRetries, OAuth2Client authClient) {
+        this.baseUrl = baseUrl.replaceAll("/$", "");
+        this.timeout = timeout;
+        this.maxRetries = maxRetries;
+        this.authClient = authClient;
+        this.httpClient = java.net.http.HttpClient.newBuilder()
+            .connectTimeout(Duration.ofMillis(timeout))
+            .build();
+        this.mapper = new ObjectMapper()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    }
+
+    public <T> T get(String path, Map<String, String> pathParams, Class<T> responseType) {
+        return request("GET", path, pathParams, null, responseType);
+    }
+
+    public <T> T post(String path, Map<String, String> pathParams, Object body, Class<T> responseType) {
+        return request("POST", path, pathParams, body, responseType);
+    }
+
+    public <T> T put(String path, Map<String, String> pathParams, Object body, Class<T> responseType) {
+        return request("PUT", path, pathParams, body, responseType);
+    }
+
+    public <T> T patch(String path, Map<String, String> pathParams, Object body, Class<T> responseType) {
+        return request("PATCH", path, pathParams, body, responseType);
+    }
+
+    public void delete(String path, Map<String, String> pathParams) {
+        request("DELETE", path, pathParams, null, Void.class);
+    }
+
+    public HttpResponse<String> rawRequest(String method, String url) throws Exception {
+        String token = authClient.getToken();
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .header("Authorization", "Bearer " + token)
+            .header("Accept", "application/json")
+            .timeout(Duration.ofMillis(timeout));
+
+        builder.method(method, HttpRequest.BodyPublishers.noBody());
+        return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private <T> T request(String method, String path, Map<String, String> pathParams, Object body, Class<T> responseType) {
+        String url = buildUrl(path, pathParams);
+
+        for (int attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                String token = authClient.getToken();
+
+                HttpRequest.Builder builder = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Authorization", "Bearer " + token)
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .timeout(Duration.ofMillis(timeout));
+
+                if (body != null) {
+                    String jsonBody = mapper.writeValueAsString(body);
+                    builder.method(method, HttpRequest.BodyPublishers.ofString(jsonBody));
+                } else {
+                    builder.method(method, HttpRequest.BodyPublishers.noBody());
+                }
+
+                HttpResponse<String> response = httpClient.send(
+                    builder.build(),
+                    HttpResponse.BodyHandlers.ofString()
+                );
+
+                if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                    if (response.statusCode() == 204 || responseType == Void.class) {
+                        return null;
+                    }
+                    return mapper.readValue(response.body(), responseType);
+                }
+
+                if (!RETRY_STATUS_CODES.contains(response.statusCode()) || attempt == maxRetries) {
+                    throw APIError.fromResponse(response.statusCode(), response.body());
+                }
+
+                long delay = Math.min(
+                    INITIAL_RETRY_DELAY * (long) Math.pow(2, attempt) + ThreadLocalRandom.current().nextLong(100),
+                    MAX_RETRY_DELAY
+                );
+                Thread.sleep(delay);
+
+            } catch (APIError e) {
+                throw e;
+            } catch (Exception e) {
+                if (attempt == maxRetries) {
+                    throw new RuntimeException("Request failed after " + maxRetries + " retries", e);
+                }
+            }
+        }
+        throw new RuntimeException("Unreachable");
+    }
+
+    private String buildUrl(String path, Map<String, String> pathParams) {
+        String url = path;
+        if (pathParams != null) {
+            for (Map.Entry<String, String> entry : pathParams.entrySet()) {
+                url = url.replace("{" + entry.getKey() + "}",
+                    URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8));
+            }
+        }
+        if (!url.startsWith("http")) {
+            url = baseUrl + url;
+        }
+        return url;
+    }
+
+    public ObjectMapper getMapper() {
+        return mapper;
+    }
+
+    public String getBaseUrl() {
+        return baseUrl;
+    }
+}

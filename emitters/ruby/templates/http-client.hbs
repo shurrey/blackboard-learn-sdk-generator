@@ -1,0 +1,119 @@
+# frozen_string_literal: true
+
+require "faraday"
+require "json"
+
+module {{moduleName}}
+  # HTTP client with retry, rate limiting, and error handling.
+  class HttpClient
+    RETRY_STATUS_CODES = [429, 500, 502, 503, 504].freeze
+    INITIAL_RETRY_DELAY = 0.5
+    MAX_RETRY_DELAY = 30
+
+    attr_reader :base_url
+
+    def initialize(base_url:, timeout:, max_retries:, auth_client:)
+      @base_url = base_url.chomp("/")
+      @max_retries = max_retries
+      @auth_client = auth_client
+      @conn = Faraday.new(url: @base_url) do |f|
+        f.options.timeout = timeout
+        f.request :json
+        f.response :json, content_type: /\bjson$/
+      end
+    end
+
+    def get(path, path_params: {}, query_params: {})
+      request(:get, path, path_params: path_params, query_params: query_params)
+    end
+
+    def post(path, path_params: {}, body: nil)
+      request(:post, path, path_params: path_params, body: body)
+    end
+
+    def put(path, path_params: {}, body: nil)
+      request(:put, path, path_params: path_params, body: body)
+    end
+
+    def patch(path, path_params: {}, body: nil)
+      request(:patch, path, path_params: path_params, body: body)
+    end
+
+    def delete(path, path_params: {})
+      request(:delete, path, path_params: path_params)
+    end
+
+    def raw_request(method, url)
+      token = @auth_client.get_token
+      @conn.run_request(method, url, nil, {
+        "Authorization" => "Bearer #{token}",
+        "Accept" => "application/json"
+      })
+    end
+
+    def paginate(path, path_params, limit: {{pagination.defaultLimit}})
+      Enumerator::Lazy.new(Enumerator.new do |yielder|
+        offset = 0
+        next_page_url = nil
+
+        loop do
+          if next_page_url
+            response = raw_request(:get, next_page_url)
+          else
+            url = build_url(path, path_params)
+            response = raw_request(:get, "#{url}?offset=#{offset}&limit=#{limit}")
+          end
+
+          data = response.body
+          results = data["results"]
+          break if results.nil? || results.empty?
+
+          results.each { |item| yielder << item }
+          offset += results.length
+
+          paging = data.dig("paging", "nextPage")
+          if paging
+            next_page_url = paging.start_with?("http") ? paging : "#{@base_url}#{paging}"
+          else
+            break
+          end
+        end
+      end, :itself)
+    end
+
+    private
+
+    def request(method, path, path_params: {}, query_params: {}, body: nil)
+      url = build_url(path, path_params)
+
+      (@max_retries + 1).times do |attempt|
+        token = @auth_client.get_token
+
+        response = @conn.run_request(method, url, body, {
+          "Authorization" => "Bearer #{token}",
+          "Content-Type" => "application/json",
+          "Accept" => "application/json"
+        }) do |req|
+          req.params.merge!(query_params) unless query_params.empty?
+        end
+
+        if response.success?
+          return response.status == 204 ? nil : response.body
+        end
+
+        unless RETRY_STATUS_CODES.include?(response.status) || attempt < @max_retries
+          raise APIError.from_response(response.status, response.body)
+        end
+
+        delay = [INITIAL_RETRY_DELAY * (2**attempt) + rand * 0.1, MAX_RETRY_DELAY].min
+        sleep(delay)
+      end
+    end
+
+    def build_url(path, path_params)
+      url = path
+      path_params.each { |key, value| url = url.gsub("{#{key}}", CGI.escape(value.to_s)) }
+      url
+    end
+  end
+end

@@ -1,0 +1,171 @@
+/**
+ * HTTP client with retry, rate limiting, and error handling.
+ *
+ * Auto-generated — do not edit manually.
+ */
+
+import { type OAuth2Client } from './auth.js';
+import { APIError, AuthenticationError, RateLimitError, NotFoundError } from './errors.js';
+
+export interface HttpClientOptions {
+  baseUrl: string;
+  timeout: number;
+  maxRetries: number;
+  authClient: OAuth2Client;
+  fetch?: typeof globalThis.fetch;
+}
+
+export interface RequestOptions {
+  pathParams?: Record<string, string>;
+  queryParams?: Record<string, any>;
+  body?: any;
+  headers?: Record<string, string>;
+}
+
+const RETRY_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+const INITIAL_RETRY_DELAY = 500;
+const MAX_RETRY_DELAY = 30000;
+
+export class HttpClient {
+  private baseUrl: string;
+  private timeout: number;
+  private maxRetries: number;
+  private authClient: OAuth2Client;
+  private fetchFn: typeof globalThis.fetch;
+
+  constructor(options: HttpClientOptions) {
+    this.baseUrl = options.baseUrl.replace(/\/$/, '');
+    this.timeout = options.timeout;
+    this.maxRetries = options.maxRetries;
+    this.authClient = options.authClient;
+    this.fetchFn = options.fetch ?? globalThis.fetch;
+  }
+
+  async get<T>(path: string, options?: RequestOptions): Promise<T> {
+    return this.request<T>('GET', path, options);
+  }
+
+  async post<T>(path: string, options?: RequestOptions): Promise<T> {
+    return this.request<T>('POST', path, options);
+  }
+
+  async put<T>(path: string, options?: RequestOptions): Promise<T> {
+    return this.request<T>('PUT', path, options);
+  }
+
+  async patch<T>(path: string, options?: RequestOptions): Promise<T> {
+    return this.request<T>('PATCH', path, options);
+  }
+
+  async delete<T>(path: string, options?: RequestOptions): Promise<T> {
+    return this.request<T>('DELETE', path, options);
+  }
+
+  /**
+   * Make a raw request (used by pagination).
+   */
+  async rawRequest(method: string, url: string, options?: RequestOptions): Promise<Response> {
+    const token = await this.authClient.getToken();
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...options?.headers,
+    };
+
+    const fetchOptions: RequestInit = {
+      method,
+      headers,
+      signal: AbortSignal.timeout(this.timeout),
+    };
+
+    if (options?.body) {
+      fetchOptions.body = JSON.stringify(options.body);
+    }
+
+    return this.fetchFn(url, fetchOptions);
+  }
+
+  private async request<T>(method: string, path: string, options?: RequestOptions): Promise<T> {
+    const url = this.buildUrl(path, options?.pathParams, options?.queryParams);
+
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      try {
+        const response = await this.rawRequest(method, url, options);
+
+        if (response.ok) {
+          if (response.status === 204) {
+            return undefined as T;
+          }
+          return await response.json() as T;
+        }
+
+        // Handle specific error codes
+        if (!RETRY_STATUS_CODES.has(response.status) || attempt === this.maxRetries) {
+          await this.throwError(response);
+        }
+
+        // Retry with backoff
+        const retryAfter = response.headers.get('Retry-After');
+        const delay = retryAfter
+          ? parseInt(retryAfter) * 1000
+          : Math.min(INITIAL_RETRY_DELAY * Math.pow(2, attempt) + Math.random() * 100, MAX_RETRY_DELAY);
+
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } catch (err) {
+        if (err instanceof APIError) throw err;
+        if (attempt === this.maxRetries) throw err;
+      }
+    }
+
+    throw new Error('Unreachable');
+  }
+
+  private buildUrl(path: string, pathParams?: Record<string, string>, queryParams?: Record<string, any>): string {
+    let url = path;
+
+    // Substitute path parameters
+    if (pathParams) {
+      for (const [key, value] of Object.entries(pathParams)) {
+        url = url.replace(`{${key}}`, encodeURIComponent(value));
+      }
+    }
+
+    const fullUrl = new URL(url, this.baseUrl);
+
+    // Add query parameters
+    if (queryParams) {
+      for (const [key, value] of Object.entries(queryParams)) {
+        if (value !== undefined && value !== null) {
+          fullUrl.searchParams.set(key, String(value));
+        }
+      }
+    }
+
+    return fullUrl.toString();
+  }
+
+  private async throwError(response: Response): Promise<never> {
+    let body: any;
+    try {
+      body = await response.json();
+    } catch {
+      body = { message: response.statusText };
+    }
+
+    const message = body?.message ?? response.statusText;
+
+    switch (response.status) {
+      case 401:
+        throw new AuthenticationError(message, response.status, body);
+      case 403:
+        throw new AuthenticationError(message, response.status, body);
+      case 404:
+        throw new NotFoundError(message, response.status, body);
+      case 429:
+        throw new RateLimitError(message, response.status, body, response.headers.get('Retry-After'));
+      default:
+        throw new APIError(message, response.status, body);
+    }
+  }
+}

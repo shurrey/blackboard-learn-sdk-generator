@@ -1,0 +1,91 @@
+package learn
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"iter"
+	"net/url"
+	"strings"
+)
+
+type paginatedResponse[T any] struct {
+	Results []T `json:"results"`
+	Paging  *struct {
+		NextPage string `json:"nextPage"`
+	} `json:"paging"`
+}
+
+// Paginate returns an iterator that transparently pages through all results.
+func Paginate[T any](ctx context.Context, client *HTTPClient, path string, pathParams map[string]string) iter.Seq2[T, error] {
+	return func(yield func(T, error) bool) {
+		offset := 0
+		limit := {{pagination.defaultLimit}}
+		var nextPageURL string
+
+		for {
+			var reqURL string
+			if nextPageURL != "" {
+				reqURL = nextPageURL
+			} else {
+				u := path
+				for key, value := range pathParams {
+					u = strings.ReplaceAll(u, "{"+key+"}", url.PathEscape(value))
+				}
+				reqURL = fmt.Sprintf("%s%s?offset=%d&limit=%d", client.BaseURL(), u, offset, limit)
+			}
+
+			resp, err := client.RawRequest(ctx, "GET", reqURL)
+			if err != nil {
+				var zero T
+				yield(zero, err)
+				return
+			}
+
+			body, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				var zero T
+				yield(zero, err)
+				return
+			}
+
+			if resp.StatusCode != 200 {
+				var zero T
+				yield(zero, fmt.Errorf("pagination request failed: %d", resp.StatusCode))
+				return
+			}
+
+			var page paginatedResponse[T]
+			if err := json.Unmarshal(body, &page); err != nil {
+				var zero T
+				yield(zero, err)
+				return
+			}
+
+			if len(page.Results) == 0 {
+				return
+			}
+
+			for _, item := range page.Results {
+				if !yield(item, nil) {
+					return
+				}
+			}
+
+			offset += len(page.Results)
+
+			if page.Paging != nil && page.Paging.NextPage != "" {
+				next := page.Paging.NextPage
+				if strings.HasPrefix(next, "http") {
+					nextPageURL = next
+				} else {
+					nextPageURL = client.BaseURL() + next
+				}
+			} else {
+				return
+			}
+		}
+	}
+}

@@ -1,0 +1,55 @@
+# frozen_string_literal: true
+
+module {{moduleName}}
+  # {{PascalCase resource.name}} resource.
+  #
+  # Auto-generated — do not edit manually.
+  class {{PascalCase resource.name}}Resource
+{{#each resource.subresources}}
+    # @return [{{../../moduleName}}::{{PascalCase name}}Resource]
+    attr_reader :{{snakeCase name}}
+{{/each}}
+
+    # @param client [{{moduleName}}::HttpClient]
+    def initialize(client)
+      @client = client
+{{#each resource.subresources}}
+      @{{snakeCase name}} = {{PascalCase name}}Resource.new(client)
+{{/each}}
+    end
+
+{{#each resource.methods}}
+    {{#if description}}
+    # {{description}}
+    {{/if}}
+    #
+    {{#each pathParams}}
+    # @param {{snakeCase name}} [{{rubyType type}}]
+    {{/each}}
+    {{#ifHasBody this}}
+    # @param body [Hash]
+    {{/ifHasBody}}
+    # @return [{{rubyReturnType this}}]
+    {{#ifPaginated this}}
+    def {{snakeCase name}}({{rubyMethodParams this}})
+      path_params = { {{#each pathParams}}"{{name}}" => {{snakeCase name}}{{#unless @last}}, {{/unless}}{{/each}} }
+      @client.paginate("{{{path}}}", path_params)
+    end
+    {{else}}
+    def {{snakeCase name}}({{rubyMethodParams this}})
+      path_params = { {{#each pathParams}}"{{name}}" => {{snakeCase name}}{{#unless @last}}, {{/unless}}{{/each}} }
+      {{#if (eq (lowercase httpMethod) "get")}}
+      @client.get("{{{path}}}", path_params: path_params)
+      {{else if (eq (lowercase httpMethod) "post")}}
+      @client.post("{{{path}}}", path_params: path_params{{#ifHasBody this}}, body: body{{/ifHasBody}})
+      {{else if (or (eq (lowercase httpMethod) "put") (eq (lowercase httpMethod) "patch"))}}
+      @client.{{lowercase httpMethod}}("{{{path}}}", path_params: path_params{{#ifHasBody this}}, body: body{{/ifHasBody}})
+      {{else if (eq (lowercase httpMethod) "delete")}}
+      @client.delete("{{{path}}}", path_params: path_params)
+      {{/if}}
+    end
+    {{/ifPaginated}}
+
+{{/each}}
+  end
+end

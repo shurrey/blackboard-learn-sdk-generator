@@ -1,0 +1,22 @@
+"""
+{{enumDef.name}} enum.
+
+Auto-generated -- do not edit manually.
+"""
+
+from enum import StrEnum
+
+
+{{#if enumDef.description}}
+class {{enumDef.name}}(StrEnum):
+    """{{enumDef.description}}"""
+{{else}}
+class {{enumDef.name}}(StrEnum):
+{{/if}}
+
+{{#each enumDef.values}}
+    {{uppercase value}} = "{{value}}"
+{{/each}}
+{{#unless enumDef.values}}
+    pass
+{{/unless}}

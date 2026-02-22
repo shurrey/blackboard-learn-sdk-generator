@@ -1,0 +1,101 @@
+"""
+Structured error hierarchy for Blackboard Learn API errors.
+
+Auto-generated -- do not edit manually.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Optional
+
+
+class APIError(Exception):
+    """Base class for all Blackboard Learn API errors.
+
+    Attributes:
+        message: Human-readable error description.
+        status_code: The HTTP status code from the API response.
+        body: The raw parsed JSON error body, if available.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int,
+        body: Any = None,
+    ) -> None:
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+        self.body = body
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(status_code={self.status_code}, message={self.message!r})"
+
+
+class AuthenticationError(APIError):
+    """Raised when the API returns a 401 Unauthorized response.
+
+    This typically means the access token is missing, expired, or invalid.
+    """
+
+
+class PermissionError(APIError):
+    """Raised when the API returns a 403 Forbidden response.
+
+    The authenticated user does not have sufficient privileges for the requested
+    operation.
+    """
+
+
+class NotFoundError(APIError):
+    """Raised when the API returns a 404 Not Found response.
+
+    The requested resource does not exist or the caller does not have access.
+    """
+
+
+class BadRequestError(APIError):
+    """Raised when the API returns a 400 Bad Request response.
+
+    The request was malformed or contained invalid parameters.
+    """
+
+
+class ConflictError(APIError):
+    """Raised when the API returns a 409 Conflict response.
+
+    The request conflicts with the current state of the resource (e.g. duplicate).
+    """
+
+
+class RateLimitError(APIError):
+    """Raised when the API returns a 429 Too Many Requests response.
+
+    Attributes:
+        retry_after: The value of the ``Retry-After`` header, if present.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int,
+        body: Any = None,
+        retry_after: Optional[str] = None,
+    ) -> None:
+        super().__init__(message, status_code=status_code, body=body)
+        self.retry_after = retry_after
+
+
+class InternalServerError(APIError):
+    """Raised when the API returns a 500 Internal Server Error response."""
+
+
+class ServiceUnavailableError(APIError):
+    """Raised when the API returns a 503 Service Unavailable response.
+
+    The service is temporarily unavailable. The request should be retried after
+    the period indicated in the ``Retry-After`` header.
+    """

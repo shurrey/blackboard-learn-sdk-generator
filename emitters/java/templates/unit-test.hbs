@@ -1,0 +1,57 @@
+package {{basePackage}}.resources;
+
+import {{basePackage}}.HttpClient;
+import {{basePackage}}.types.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+
+import java.util.*;
+
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+/**
+ * Unit tests for {{PascalCase resource.name}}Resource.
+ */
+class {{PascalCase resource.name}}ResourceTest {
+
+    private HttpClient mockClient;
+    private {{PascalCase resource.name}}Resource resource;
+
+    @BeforeEach
+    void setUp() {
+        mockClient = Mockito.mock(HttpClient.class);
+        resource = new {{PascalCase resource.name}}Resource(mockClient);
+    }
+
+{{#each resource.methods}}
+    {{#unless paginated}}
+    @Test
+    void {{camelCase name}}_sendsCorrectRequest() throws Exception {
+        {{#if (eq (lowercase httpMethod) "get")}}
+        when(mockClient.get(anyString(), anyMap(), any())).thenReturn(null);
+        resource.{{camelCase name}}({{#each pathParams}}{{javaTestValue this}}{{#unless @last}}, {{/unless}}{{/each}});
+        verify(mockClient).get(eq("{{{path}}}"), anyMap(), any());
+        {{else if (eq (lowercase httpMethod) "post")}}
+        when(mockClient.post(anyString(), anyMap(), any(), any())).thenReturn(null);
+        resource.{{camelCase name}}({{#each pathParams}}{{javaTestValue this}}{{#unless @last}}, {{/unless}}{{/each}}{{#ifHasBody this}}{{#if pathParams}}, {{/if}}null{{/ifHasBody}});
+        verify(mockClient).post(eq("{{{path}}}"), anyMap(), any(), any());
+        {{else if (eq (lowercase httpMethod) "put")}}
+        when(mockClient.put(anyString(), anyMap(), any(), any())).thenReturn(null);
+        resource.{{camelCase name}}({{#each pathParams}}{{javaTestValue this}}{{#unless @last}}, {{/unless}}{{/each}}{{#ifHasBody this}}{{#if pathParams}}, {{/if}}null{{/ifHasBody}});
+        verify(mockClient).put(eq("{{{path}}}"), anyMap(), any(), any());
+        {{else if (eq (lowercase httpMethod) "patch")}}
+        when(mockClient.patch(anyString(), anyMap(), any(), any())).thenReturn(null);
+        resource.{{camelCase name}}({{#each pathParams}}{{javaTestValue this}}{{#unless @last}}, {{/unless}}{{/each}}{{#ifHasBody this}}{{#if pathParams}}, {{/if}}null{{/ifHasBody}});
+        verify(mockClient).patch(eq("{{{path}}}"), anyMap(), any(), any());
+        {{else if (eq (lowercase httpMethod) "delete")}}
+        doNothing().when(mockClient).delete(anyString(), anyMap());
+        resource.{{camelCase name}}({{#each pathParams}}{{javaTestValue this}}{{#unless @last}}, {{/unless}}{{/each}});
+        verify(mockClient).delete(eq("{{{path}}}"), anyMap());
+        {{/if}}
+    }
+    {{/unless}}
+
+{{/each}}
+}

@@ -1,0 +1,43 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { {{PascalCase resource.name}}Resource } from '../src/resources/{{resource.name}}.js';
+import type { HttpClient } from '../src/http-client.js';
+
+describe('{{PascalCase resource.name}}Resource', () => {
+  let mockClient: HttpClient;
+  let resource: {{PascalCase resource.name}}Resource;
+
+  beforeEach(() => {
+    mockClient = {
+      get: vi.fn().mockResolvedValue({}),
+      post: vi.fn().mockResolvedValue({}),
+      put: vi.fn().mockResolvedValue({}),
+      patch: vi.fn().mockResolvedValue({}),
+      delete: vi.fn().mockResolvedValue(undefined),
+      rawRequest: vi.fn().mockResolvedValue({ ok: true, json: () => ({ results: [], paging: null }) }),
+    } as any;
+    resource = new {{PascalCase resource.name}}Resource(mockClient);
+  });
+
+{{#each resource.methods}}
+  {{#unless paginated}}
+  it('{{name}} sends correct request', async () => {
+    {{#if (eq (lowercase httpMethod) "get")}}
+    await resource.{{camelCase name}}({{#each pathParams}}'test-id'{{#unless @last}}, {{/unless}}{{/each}});
+    expect(mockClient.get).toHaveBeenCalledWith(
+      '{{{path}}}',
+      expect.objectContaining({
+        pathParams: expect.any(Object),
+      })
+    );
+    {{else if (eq (lowercase httpMethod) "post")}}
+    await resource.{{camelCase name}}({{#each pathParams}}'test-id', {{/each}}{{#ifHasBody this}}{}{{/ifHasBody}});
+    expect(mockClient.post).toHaveBeenCalled();
+    {{else if (eq (lowercase httpMethod) "delete")}}
+    await resource.{{camelCase name}}({{#each pathParams}}'test-id'{{#unless @last}}, {{/unless}}{{/each}});
+    expect(mockClient.delete).toHaveBeenCalled();
+    {{/if}}
+  });
+  {{/unless}}
+
+{{/each}}
+});

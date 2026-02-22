@@ -1,0 +1,40 @@
+"""Unit tests for {{resource.name}} resource."""
+
+from unittest.mock import AsyncMock, MagicMock, patch
+import pytest
+from blackboard_learn.resources.{{snakeCase resource.name}} import {{PascalCase resource.name}}Resource
+
+
+@pytest.fixture
+def mock_client():
+    client = MagicMock()
+    client.get = AsyncMock(return_value={})
+    client.post = AsyncMock(return_value={})
+    client.put = AsyncMock(return_value={})
+    client.patch = AsyncMock(return_value={})
+    client.delete = AsyncMock(return_value=None)
+    return client
+
+
+@pytest.fixture
+def resource(mock_client):
+    return {{PascalCase resource.name}}Resource(mock_client)
+
+
+{{#each resource.methods}}
+{{#unless paginated}}
+class Test{{PascalCase name}}:
+    async def test_sends_correct_request(self, resource, mock_client):
+        {{#if (eq (lowercase httpMethod) "get")}}
+        await resource.{{snakeCase name}}({{#each pathParams}}"test-id"{{#unless @last}}, {{/unless}}{{/each}})
+        mock_client.get.assert_called_once()
+        {{else if (eq (lowercase httpMethod) "post")}}
+        await resource.{{snakeCase name}}({{#each pathParams}}"test-id", {{/each}}{{#ifHasBody this}}body={}{{/ifHasBody}})
+        mock_client.post.assert_called_once()
+        {{else if (eq (lowercase httpMethod) "delete")}}
+        await resource.{{snakeCase name}}({{#each pathParams}}"test-id"{{#unless @last}}, {{/unless}}{{/each}})
+        mock_client.delete.assert_called_once()
+        {{/if}}
+
+{{/unless}}
+{{/each}}

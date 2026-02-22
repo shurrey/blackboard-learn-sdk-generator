@@ -1,0 +1,11 @@
+node_modules/
+dist/
+output/
+spec/cache/
+*.js
+*.d.ts
+*.js.map
+!bin/generate.js
+.env
+.DS_Store
+coverage/

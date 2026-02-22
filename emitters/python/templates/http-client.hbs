@@ -1,0 +1,266 @@
+"""
+HTTP client with retry, rate limiting, and error handling.
+
+Auto-generated -- do not edit manually.
+"""
+
+from __future__ import annotations
+
+import time
+import random
+from dataclasses import dataclass
+from typing import Any, Optional
+from urllib.parse import urlencode, quote
+
+import httpx
+
+from ._auth import OAuth2Client
+from ._errors import (
+    APIError,
+    AuthenticationError,
+    PermissionError,
+    NotFoundError,
+    BadRequestError,
+    ConflictError,
+    RateLimitError,
+    InternalServerError,
+    ServiceUnavailableError,
+)
+
+_RETRY_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+_INITIAL_RETRY_DELAY = 0.5  # seconds
+_MAX_RETRY_DELAY = 30.0  # seconds
+
+
+@dataclass
+class HttpClientConfig:
+    """Configuration for the HTTP client."""
+
+    base_url: str
+    timeout: float
+    max_retries: int
+    auth_client: OAuth2Client
+
+
+class HttpClient:
+    """Low-level HTTP client with automatic retry, rate limiting, and auth."""
+
+    def __init__(self, config: HttpClientConfig) -> None:
+        self._base_url = config.base_url.rstrip("/")
+        self._timeout = config.timeout
+        self._max_retries = config.max_retries
+        self._auth_client = config.auth_client
+        self._client = httpx.Client(
+            timeout=httpx.Timeout(config.timeout),
+            follow_redirects=True,
+        )
+
+    def get(
+        self,
+        path: str,
+        *,
+        path_params: Optional[dict[str, str]] = None,
+        query_params: Optional[dict[str, Any]] = None,
+    ) -> Any:
+        """Send a GET request."""
+        return self._request("GET", path, path_params=path_params, query_params=query_params)
+
+    def post(
+        self,
+        path: str,
+        *,
+        path_params: Optional[dict[str, str]] = None,
+        body: Any = None,
+    ) -> Any:
+        """Send a POST request."""
+        return self._request("POST", path, path_params=path_params, body=body)
+
+    def put(
+        self,
+        path: str,
+        *,
+        path_params: Optional[dict[str, str]] = None,
+        body: Any = None,
+    ) -> Any:
+        """Send a PUT request."""
+        return self._request("PUT", path, path_params=path_params, body=body)
+
+    def patch(
+        self,
+        path: str,
+        *,
+        path_params: Optional[dict[str, str]] = None,
+        body: Any = None,
+    ) -> Any:
+        """Send a PATCH request."""
+        return self._request("PATCH", path, path_params=path_params, body=body)
+
+    def delete(
+        self,
+        path: str,
+        *,
+        path_params: Optional[dict[str, str]] = None,
+    ) -> Any:
+        """Send a DELETE request."""
+        return self._request("DELETE", path, path_params=path_params)
+
+    def raw_request(
+        self,
+        method: str,
+        url: str,
+        *,
+        query_params: Optional[dict[str, Any]] = None,
+        body: Any = None,
+        headers: Optional[dict[str, str]] = None,
+    ) -> httpx.Response:
+        """Make a raw HTTP request (used by pagination and advanced use cases).
+
+        Args:
+            method: HTTP method.
+            url: Fully qualified URL.
+            query_params: Optional query parameters.
+            body: Optional JSON body.
+            headers: Optional additional headers.
+
+        Returns:
+            The raw httpx.Response.
+        """
+        token = self._auth_client.get_token()
+        request_headers: dict[str, str] = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        if headers:
+            request_headers.update(headers)
+
+        json_body = None
+        if body is not None:
+            if hasattr(body, "model_dump"):
+                json_body = body.model_dump(by_alias=True, exclude_none=True)
+            elif isinstance(body, dict):
+                json_body = body
+            else:
+                json_body = body
+
+        return self._client.request(
+            method,
+            url,
+            headers=request_headers,
+            params=query_params,
+            json=json_body,
+        )
+
+    def close(self) -> None:
+        """Close the underlying httpx client."""
+        self._client.close()
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        path_params: Optional[dict[str, str]] = None,
+        query_params: Optional[dict[str, Any]] = None,
+        body: Any = None,
+    ) -> Any:
+        """Execute an HTTP request with retry and error handling."""
+        url = self._build_url(path, path_params)
+
+        last_error: Optional[Exception] = None
+
+        for attempt in range(self._max_retries + 1):
+            try:
+                response = self.raw_request(
+                    method,
+                    url,
+                    query_params=query_params,
+                    body=body,
+                )
+
+                if response.is_success:
+                    if response.status_code == 204:
+                        return None
+                    return response.json()
+
+                # Non-retryable error or final attempt
+                if response.status_code not in _RETRY_STATUS_CODES or attempt == self._max_retries:
+                    self._raise_error(response)
+
+                # Retry with backoff
+                delay = self._get_retry_delay(response, attempt)
+                time.sleep(delay)
+
+            except APIError:
+                raise
+            except Exception as exc:
+                last_error = exc
+                if attempt == self._max_retries:
+                    raise
+                delay = self._get_retry_delay(None, attempt)
+                time.sleep(delay)
+
+        # Should not reach here, but just in case
+        if last_error:
+            raise last_error
+        msg = "Max retries exceeded"
+        raise APIError(msg, status_code=0)
+
+    def _build_url(
+        self,
+        path: str,
+        path_params: Optional[dict[str, str]] = None,
+    ) -> str:
+        """Build the full URL from path template and parameters."""
+        url = path
+        if path_params:
+            for key, value in path_params.items():
+                url = url.replace(f"{{{key}}}", quote(str(value), safe=""))
+        return f"{self._base_url}{url}"
+
+    def _get_retry_delay(self, response: Optional[httpx.Response], attempt: int) -> float:
+        """Calculate retry delay with exponential backoff and jitter."""
+        if response is not None:
+            retry_after = response.headers.get("Retry-After")
+            if retry_after:
+                try:
+                    return float(retry_after)
+                except ValueError:
+                    pass
+
+        delay = min(
+            _INITIAL_RETRY_DELAY * (2 ** attempt) + random.uniform(0, 0.1),
+            _MAX_RETRY_DELAY,
+        )
+        return delay
+
+    @staticmethod
+    def _raise_error(response: httpx.Response) -> None:
+        """Raise an appropriate APIError subclass for the HTTP status code."""
+        try:
+            body = response.json()
+        except Exception:
+            body = {"message": response.reason_phrase}
+
+        message = body.get("message", response.reason_phrase) if isinstance(body, dict) else str(body)
+
+        status = response.status_code
+        if status == 400:
+            raise BadRequestError(message, status_code=status, body=body)
+        elif status == 401:
+            raise AuthenticationError(message, status_code=status, body=body)
+        elif status == 403:
+            raise PermissionError(message, status_code=status, body=body)
+        elif status == 404:
+            raise NotFoundError(message, status_code=status, body=body)
+        elif status == 409:
+            raise ConflictError(message, status_code=status, body=body)
+        elif status == 429:
+            retry_after = response.headers.get("Retry-After")
+            raise RateLimitError(message, status_code=status, body=body, retry_after=retry_after)
+        elif status >= 500:
+            if status == 503:
+                raise ServiceUnavailableError(message, status_code=status, body=body)
+            raise InternalServerError(message, status_code=status, body=body)
+        else:
+            raise APIError(message, status_code=status, body=body)

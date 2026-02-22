@@ -1,0 +1,34 @@
+"""Unit tests for {{category}} tools."""
+
+from unittest.mock import AsyncMock, MagicMock, patch
+import pytest
+
+
+@pytest.fixture
+def mock_client():
+    client = MagicMock()
+    client.get = MagicMock()
+    client.post = MagicMock()
+    client.put = MagicMock()
+    client.patch = MagicMock()
+    client.delete = MagicMock()
+    return client
+
+
+@pytest.fixture
+def get_client(mock_client):
+    return lambda: mock_client
+
+
+{{#each tools}}
+class Test{{PascalCase name}}:
+    async def test_tool_is_registered(self, get_client):
+        """Verify {{name}} tool can be registered without errors."""
+        from fastmcp import FastMCP
+
+        mcp = FastMCP("test")
+        from blackboard_learn_mcp.tools.{{../category}} import register_{{../category}}_tools
+
+        register_{{../category}}_tools(mcp, get_client)
+
+{{/each}}

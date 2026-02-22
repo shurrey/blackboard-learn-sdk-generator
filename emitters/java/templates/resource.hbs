@@ -1,0 +1,81 @@
+package {{basePackage}}.resources;
+
+import {{basePackage}}.HttpClient;
+import {{basePackage}}.PaginatedIterator;
+import {{basePackage}}.types.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.util.*;
+
+/**
+ * {{PascalCase resource.name}} resource.
+ *
+ * <p>Auto-generated — do not edit manually.</p>
+ */
+public class {{PascalCase resource.name}}Resource {
+
+    private final HttpClient client;
+    private static final ObjectMapper mapper = new ObjectMapper();
+
+{{#each resource.subresources}}
+    private final {{PascalCase name}}Resource {{camelCase name}};
+{{/each}}
+
+    public {{PascalCase resource.name}}Resource(HttpClient client) {
+        this.client = client;
+{{#each resource.subresources}}
+        this.{{camelCase name}} = new {{PascalCase name}}Resource(client);
+{{/each}}
+    }
+
+{{#each resource.subresources}}
+    /** Access the {{name}} sub-resource. */
+    public {{PascalCase name}}Resource {{camelCase name}}() {
+        return this.{{camelCase name}};
+    }
+
+{{/each}}
+{{#each resource.methods}}
+    {{#if description}}
+    /** {{singleLine description}} */
+    {{/if}}
+    {{#ifPaginated this}}
+    public Iterator<{{javaType paginationConfig.itemType}}> {{camelCase name}}({{javaMethodParams this}}) {
+        Map<String, String> pathParams = new HashMap<>();
+        {{#each pathParams}}
+        pathParams.put("{{name}}", String.valueOf({{camelCase name}}));
+        {{/each}}
+        return new PaginatedIterator<>(client, "{{{path}}}", pathParams, {{javaClassLiteral paginationConfig.itemType}});
+    }
+    {{else}}
+    public {{javaReturnType this}} {{camelCase name}}({{javaMethodParams this}}) {
+        Map<String, String> pathParams = new HashMap<>();
+        {{#each pathParams}}
+        pathParams.put("{{name}}", String.valueOf({{camelCase name}}));
+        {{/each}}
+        {{#if (eq (lowercase httpMethod) "delete")}}
+        client.delete("{{{path}}}", pathParams);
+        {{else if (eq (lowercase httpMethod) "get")}}
+        {{#if (isVoid response.type)}}
+        client.get("{{{path}}}", pathParams, Void.class);
+        {{else}}
+        return client.get("{{{path}}}", pathParams, {{javaClassLiteral response.type}});
+        {{/if}}
+        {{else if (eq (lowercase httpMethod) "post")}}
+        {{#if (isVoid response.type)}}
+        client.post("{{{path}}}", pathParams, {{#ifHasBody this}}body{{else}}null{{/ifHasBody}}, Void.class);
+        {{else}}
+        return client.post("{{{path}}}", pathParams, {{#ifHasBody this}}body{{else}}null{{/ifHasBody}}, {{javaClassLiteral response.type}});
+        {{/if}}
+        {{else if (or (eq (lowercase httpMethod) "put") (eq (lowercase httpMethod) "patch"))}}
+        {{#if (isVoid response.type)}}
+        client.{{lowercase httpMethod}}("{{{path}}}", pathParams, {{#ifHasBody this}}body{{else}}null{{/ifHasBody}}, Void.class);
+        {{else}}
+        return client.{{lowercase httpMethod}}("{{{path}}}", pathParams, {{#ifHasBody this}}body{{else}}null{{/ifHasBody}}, {{javaClassLiteral response.type}});
+        {{/if}}
+        {{/if}}
+    }
+    {{/ifPaginated}}
+
+{{/each}}
+}

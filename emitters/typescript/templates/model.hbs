@@ -1,0 +1,24 @@
+/**
+ * {{model.name}} type definition
+ *
+ * Auto-generated — do not edit manually.
+ */
+
+{{#each importedTypes}}
+import type { {{this}} } from './{{@key}}.js';
+{{/each}}
+
+{{#if model.description}}
+/** {{model.description}} */
+{{/if}}
+export interface {{model.name}} {
+{{#each model.properties}}
+  {{#if description}}
+  /** {{description}} */
+  {{/if}}
+  {{#if deprecated}}
+  /** @deprecated */
+  {{/if}}
+  {{name}}{{#unless required}}?{{/unless}}: {{tsType type}};
+{{/each}}
+}

@@ -1,0 +1,85 @@
+package {{basePackage}};
+
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Base64;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+/**
+ * OAuth 2.0 client supporting client_credentials and authorization_code + PKCE.
+ *
+ * <p>Auto-generated — do not edit manually.</p>
+ */
+public class OAuth2Client {
+
+    private final String baseUrl;
+    private final String clientId;
+    private final String clientSecret;
+    private final String tokenEndpoint;
+    private final java.net.http.HttpClient httpClient;
+    private final ObjectMapper mapper;
+
+    private String accessToken;
+    private long tokenExpiry;
+
+    public OAuth2Client(String baseUrl, String clientId, String clientSecret, String tokenEndpoint) {
+        this.baseUrl = baseUrl.replaceAll("/$", "");
+        this.clientId = clientId;
+        this.clientSecret = clientSecret;
+        this.tokenEndpoint = tokenEndpoint;
+        this.httpClient = java.net.http.HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(30))
+            .build();
+        this.mapper = new ObjectMapper();
+    }
+
+    /** Set an externally obtained access token. */
+    public synchronized void setAccessToken(String token) {
+        this.accessToken = token;
+        this.tokenExpiry = System.currentTimeMillis() + 3600_000;
+    }
+
+    /** Get a valid access token, refreshing via client_credentials if needed. */
+    public synchronized String getToken() {
+        if (accessToken != null && System.currentTimeMillis() < tokenExpiry - 60_000) {
+            return accessToken;
+        }
+        return fetchToken();
+    }
+
+    private String fetchToken() {
+        try {
+            String body = "grant_type=client_credentials";
+            String credentials = Base64.getEncoder()
+                .encodeToString((clientId + ":" + clientSecret).getBytes(StandardCharsets.UTF_8));
+
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + tokenEndpoint))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .header("Authorization", "Basic " + credentials)
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() != 200) {
+                throw new RuntimeException("OAuth2 token request failed: " + response.statusCode());
+            }
+
+            var tokenResponse = mapper.readTree(response.body());
+            this.accessToken = tokenResponse.get("access_token").asText();
+            int expiresIn = tokenResponse.get("expires_in").asInt();
+            this.tokenExpiry = System.currentTimeMillis() + (expiresIn * 1000L);
+
+            return this.accessToken;
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to obtain OAuth2 token", e);
+        }
+    }
+}

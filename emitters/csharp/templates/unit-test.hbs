@@ -1,0 +1,65 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Moq;
+using Xunit;
+using {{namespace}};
+using {{namespace}}.Resources;
+using {{namespace}}.Types;
+
+namespace {{namespace}}.Tests.Resources;
+
+/// <summary>Unit tests for {{PascalCase resource.name}}Resource.</summary>
+public class {{PascalCase resource.name}}ResourceTests
+{
+    private readonly Mock<LearnHttpClient> _mockClient;
+    private readonly {{PascalCase resource.name}}Resource _resource;
+
+    public {{PascalCase resource.name}}ResourceTests()
+    {
+        _mockClient = new Mock<LearnHttpClient>();
+        _resource = new {{PascalCase resource.name}}Resource(_mockClient.Object);
+    }
+
+{{#each resource.methods}}
+    {{#unless paginated}}
+    [Fact]
+    public async Task {{PascalCase name}}Async_SendsCorrectRequest()
+    {
+        {{#if (eq (lowercase httpMethod) "delete")}}
+        _mockClient
+            .Setup(c => c.DeleteAsync(It.IsAny<string>(), It.IsAny<Dictionary<string, string>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        await _resource.{{PascalCase name}}Async({{#each pathParams}}{{csTestValue this}}{{#unless @last}}, {{/unless}}{{/each}});
+        _mockClient.Verify(c => c.DeleteAsync("{{{path}}}", It.IsAny<Dictionary<string, string>>(), It.IsAny<CancellationToken>()), Times.Once);
+        {{else if (eq (lowercase httpMethod) "get")}}
+        _mockClient
+            .Setup(c => c.GetAsync<{{#if (isVoid response.type)}}object{{else}}{{csType response.type}}{{/if}}>(It.IsAny<string>(), It.IsAny<Dictionary<string, string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(default({{#if (isVoid response.type)}}object{{else}}{{csType response.type}}{{/if}}));
+        await _resource.{{PascalCase name}}Async({{#each pathParams}}{{csTestValue this}}{{#unless @last}}, {{/unless}}{{/each}});
+        _mockClient.Verify(c => c.GetAsync<{{#if (isVoid response.type)}}object{{else}}{{csType response.type}}{{/if}}>("{{{path}}}", It.IsAny<Dictionary<string, string>>(), It.IsAny<CancellationToken>()), Times.Once);
+        {{else if (eq (lowercase httpMethod) "post")}}
+        _mockClient
+            .Setup(c => c.PostAsync<{{#if (isVoid response.type)}}object{{else}}{{csType response.type}}{{/if}}>(It.IsAny<string>(), It.IsAny<Dictionary<string, string>>(), It.IsAny<object>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(default({{#if (isVoid response.type)}}object{{else}}{{csType response.type}}{{/if}}));
+        await _resource.{{PascalCase name}}Async({{#each pathParams}}{{csTestValue this}}{{#unless @last}}, {{/unless}}{{/each}}{{#ifHasBody this}}{{#if pathParams}}, {{/if}}null{{/ifHasBody}});
+        _mockClient.Verify(c => c.PostAsync<{{#if (isVoid response.type)}}object{{else}}{{csType response.type}}{{/if}}>(It.IsAny<string>(), It.IsAny<Dictionary<string, string>>(), It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
+        {{else if (eq (lowercase httpMethod) "put")}}
+        _mockClient
+            .Setup(c => c.PutAsync<{{#if (isVoid response.type)}}object{{else}}{{csType response.type}}{{/if}}>(It.IsAny<string>(), It.IsAny<Dictionary<string, string>>(), It.IsAny<object>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(default({{#if (isVoid response.type)}}object{{else}}{{csType response.type}}{{/if}}));
+        await _resource.{{PascalCase name}}Async({{#each pathParams}}{{csTestValue this}}{{#unless @last}}, {{/unless}}{{/each}}{{#ifHasBody this}}{{#if pathParams}}, {{/if}}null{{/ifHasBody}});
+        _mockClient.Verify(c => c.PutAsync<{{#if (isVoid response.type)}}object{{else}}{{csType response.type}}{{/if}}>(It.IsAny<string>(), It.IsAny<Dictionary<string, string>>(), It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
+        {{else if (eq (lowercase httpMethod) "patch")}}
+        _mockClient
+            .Setup(c => c.PatchAsync<{{#if (isVoid response.type)}}object{{else}}{{csType response.type}}{{/if}}>(It.IsAny<string>(), It.IsAny<Dictionary<string, string>>(), It.IsAny<object>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(default({{#if (isVoid response.type)}}object{{else}}{{csType response.type}}{{/if}}));
+        await _resource.{{PascalCase name}}Async({{#each pathParams}}{{csTestValue this}}{{#unless @last}}, {{/unless}}{{/each}}{{#ifHasBody this}}{{#if pathParams}}, {{/if}}null{{/ifHasBody}});
+        _mockClient.Verify(c => c.PatchAsync<{{#if (isVoid response.type)}}object{{else}}{{csType response.type}}{{/if}}>(It.IsAny<string>(), It.IsAny<Dictionary<string, string>>(), It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
+        {{/if}}
+    }
+    {{/unless}}
+
+{{/each}}
+}

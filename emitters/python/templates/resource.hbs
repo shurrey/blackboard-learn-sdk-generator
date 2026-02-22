@@ -1,0 +1,105 @@
+"""
+{{PascalCase resource.name}} resource.
+
+Auto-generated -- do not edit manually.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Iterator, Optional
+
+{{#each imports}}
+from ..types.{{snakeCase @key}} import {{this}}
+{{/each}}
+{{#each subresourceImports}}
+from .{{snakeCase this}} import {{PascalCase this}}Resource
+{{/each}}
+
+if TYPE_CHECKING:
+    from .._http_client import HttpClient
+
+
+class {{PascalCase resource.name}}Resource:
+    """Provides access to {{resource.name}} endpoints."""
+
+    def __init__(self, client: HttpClient) -> None:
+        self._client = client
+{{#each resource.subresources}}
+        self.{{snakeCase name}} = {{PascalCase name}}Resource(client)
+{{/each}}
+
+{{#each resource.methods}}
+    def {{snakeCase name}}(
+        {{pyMethodParams this}},
+    ) -> {{pyReturnType this}}:
+{{#if description}}
+        """{{description}}"""
+{{else}}
+        """{{PascalCase ../resource.name}} {{name}} operation."""
+{{/if}}
+{{#ifPaginated this}}
+        from .._pagination import paginate
+
+        path_params: dict[str, str] = {
+{{#each pathParams}}
+            "{{name}}": {{snakeCase name}},
+{{/each}}
+        }
+        query_params: dict[str, object] = {}
+{{#each queryParams}}
+        if {{snakeCase name}} is not None:
+            query_params["{{name}}"] = {{snakeCase name}}
+{{/each}}
+        return paginate(
+            client=self._client,
+            path="{{{path}}}",
+            path_params=path_params,
+            query_params=query_params,
+            results_field="{{paginationConfig.resultsField}}",
+        )
+{{else}}
+        path_params: dict[str, str] = {
+{{#each pathParams}}
+            "{{name}}": {{snakeCase name}},
+{{/each}}
+        }
+{{#if (hasItems queryParams)}}
+        query_params: dict[str, object] = {}
+{{#each queryParams}}
+        if {{snakeCase name}} is not None:
+            query_params["{{name}}"] = {{snakeCase name}}
+{{/each}}
+{{/if}}
+{{#if (eq (lowercase httpMethod) "get")}}
+        return self._client.get(
+            "{{{path}}}",
+            path_params=path_params,
+{{#if (hasItems queryParams)}}
+            query_params=query_params,
+{{/if}}
+        )
+{{else if (eq (lowercase httpMethod) "post")}}
+        return self._client.post(
+            "{{{path}}}",
+            path_params=path_params,
+{{#ifHasBody this}}
+            body=body,
+{{/ifHasBody}}
+        )
+{{else if (or (eq (lowercase httpMethod) "put") (eq (lowercase httpMethod) "patch"))}}
+        return self._client.{{lowercase httpMethod}}(
+            "{{{path}}}",
+            path_params=path_params,
+{{#ifHasBody this}}
+            body=body,
+{{/ifHasBody}}
+        )
+{{else if (eq (lowercase httpMethod) "delete")}}
+        return self._client.delete(
+            "{{{path}}}",
+            path_params=path_params,
+        )
+{{/if}}
+{{/ifPaginated}}
+
+{{/each}}

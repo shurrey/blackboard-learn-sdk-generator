@@ -1,0 +1,35 @@
+# frozen_string_literal: true
+
+module {{moduleName}}
+  # Base API error for Blackboard Learn REST API.
+  class APIError < StandardError
+    attr_reader :status, :body
+
+    def initialize(message, status, body = nil)
+      super(message)
+      @status = status
+      @body = body
+    end
+
+    def self.from_response(status, body)
+      message = body.is_a?(Hash) ? body["message"] || body.to_s : body.to_s
+
+      case status
+      when 400 then BadRequestError.new(message, status, body)
+      when 401 then AuthenticationError.new(message, status, body)
+      when 403 then PermissionError.new(message, status, body)
+      when 404 then NotFoundError.new(message, status, body)
+      when 409 then ConflictError.new(message, status, body)
+      when 429 then RateLimitError.new(message, status, body)
+      else new(message, status, body)
+      end
+    end
+  end
+
+  class BadRequestError < APIError; end
+  class AuthenticationError < APIError; end
+  class PermissionError < APIError; end
+  class NotFoundError < APIError; end
+  class ConflictError < APIError; end
+  class RateLimitError < APIError; end
+end

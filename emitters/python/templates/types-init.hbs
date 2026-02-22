@@ -1,0 +1,21 @@
+"""
+Type definitions (Pydantic models and enums) for the Blackboard Learn SDK.
+
+Auto-generated -- do not edit manually.
+"""
+
+{{#each models}}
+from .{{snakeCase originalName}} import {{name}}
+{{/each}}
+{{#each enums}}
+from .{{snakeCase name}} import {{name}}
+{{/each}}
+
+__all__ = [
+{{#each models}}
+    "{{name}}",
+{{/each}}
+{{#each enums}}
+    "{{name}}",
+{{/each}}
+]

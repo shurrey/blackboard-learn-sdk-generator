@@ -1,0 +1,34 @@
+/**
+ * Blackboard Learn SDK for TypeScript/JavaScript
+ *
+ * @packageDocumentation
+ */
+
+export { Client, type ClientOptions } from './client.js';
+export { OAuth2Client, type AuthConfig } from './auth.js';
+export { paginate, collectAll } from './pagination.js';
+export {
+  APIError,
+  AuthenticationError,
+  PermissionError,
+  NotFoundError,
+  BadRequestError,
+  ConflictError,
+  RateLimitError,
+  InternalServerError,
+  ServiceUnavailableError,
+} from './errors.js';
+
+// Resource classes
+{{#each topLevelResources}}
+export { {{PascalCase name}}Resource } from './resources/{{name}}.js';
+{{/each}}
+
+// Type exports
+{{#each models}}
+export type { {{name}} } from './types/{{originalName}}.js';
+{{/each}}
+
+{{#each enums}}
+export type { {{name}} } from './types/{{name}}.js';
+{{/each}}

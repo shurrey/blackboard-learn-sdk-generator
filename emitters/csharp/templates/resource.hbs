@@ -1,0 +1,75 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using {{namespace}}.Types;
+
+namespace {{namespace}}.Resources;
+
+/// <summary>{{PascalCase resource.name}} resource.</summary>
+public class {{PascalCase resource.name}}Resource
+{
+    private readonly LearnHttpClient _client;
+
+{{#each resource.subresources}}
+    public {{PascalCase name}}Resource {{PascalCase name}} { get; }
+{{/each}}
+
+    public {{PascalCase resource.name}}Resource(LearnHttpClient client)
+    {
+        _client = client;
+{{#each resource.subresources}}
+        {{PascalCase name}} = new {{PascalCase name}}Resource(client);
+{{/each}}
+    }
+
+{{#each resource.methods}}
+    {{#if description}}
+    /// <summary>{{singleLine description}}</summary>
+    {{/if}}
+    {{#ifPaginated this}}
+    public IAsyncEnumerable<{{csType paginationConfig.itemType}}> {{PascalCase name}}Async({{csMethodParams this}}{{#if (or (hasItems pathParams) requestBody)}}, {{/if}}CancellationToken cancellationToken = default)
+    {
+        var pathParams = new Dictionary<string, string>
+        {
+            {{#each pathParams}}
+            ["{{name}}"] = {{camelCase name}}.ToString(),
+            {{/each}}
+        };
+        return Paginator.PaginateAsync<{{csType paginationConfig.itemType}}>(_client, "{{{path}}}", pathParams, cancellationToken);
+    }
+    {{else}}
+    public async {{csReturnType this}} {{PascalCase name}}Async({{csMethodParams this}}{{#if (or (hasItems pathParams) requestBody)}}, {{/if}}CancellationToken cancellationToken = default)
+    {
+        var pathParams = new Dictionary<string, string>
+        {
+            {{#each pathParams}}
+            ["{{name}}"] = {{camelCase name}}.ToString(),
+            {{/each}}
+        };
+        {{#if (eq (lowercase httpMethod) "delete")}}
+        await _client.DeleteAsync("{{{path}}}", pathParams, cancellationToken);
+        {{else if (eq (lowercase httpMethod) "get")}}
+        {{#if (isVoid response.type)}}
+        await _client.GetAsync<object>("{{{path}}}", pathParams, cancellationToken);
+        {{else}}
+        return await _client.GetAsync<{{csType response.type}}>("{{{path}}}", pathParams, cancellationToken);
+        {{/if}}
+        {{else if (eq (lowercase httpMethod) "post")}}
+        {{#if (isVoid response.type)}}
+        await _client.PostAsync<object>("{{{path}}}", pathParams, {{#ifHasBody this}}body{{else}}null{{/ifHasBody}}, cancellationToken);
+        {{else}}
+        return await _client.PostAsync<{{csType response.type}}>("{{{path}}}", pathParams, {{#ifHasBody this}}body{{else}}null{{/ifHasBody}}, cancellationToken);
+        {{/if}}
+        {{else if (or (eq (lowercase httpMethod) "put") (eq (lowercase httpMethod) "patch"))}}
+        {{#if (isVoid response.type)}}
+        await _client.{{PascalCase (lowercase httpMethod)}}Async<object>("{{{path}}}", pathParams, {{#ifHasBody this}}body{{else}}null{{/ifHasBody}}, cancellationToken);
+        {{else}}
+        return await _client.{{PascalCase (lowercase httpMethod)}}Async<{{csType response.type}}>("{{{path}}}", pathParams, {{#ifHasBody this}}body{{else}}null{{/ifHasBody}}, cancellationToken);
+        {{/if}}
+        {{/if}}
+    }
+    {{/ifPaginated}}
+
+{{/each}}
+}

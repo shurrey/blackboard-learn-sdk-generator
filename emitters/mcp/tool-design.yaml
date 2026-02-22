@@ -1,0 +1,536 @@
+# MCP Tool Design for Blackboard Learn
+#
+# These tool definitions are the contract between the generator and the MCP server
+# output. Each tool is carefully curated for optimal agent ergonomics:
+#   - Flat parameters (no nested objects) for easy tool-calling
+#   - Descriptive docstrings that teach agents WHEN and HOW to use each tool
+#   - Return formatted text, not raw JSON
+#   - ~12 high-value tools + 1 escape hatch
+
+tools:
+  - name: learn_search_courses
+    description: >
+      Search for courses in Blackboard Learn by name, term, or instructor.
+      Use this when a user asks about finding courses, listing courses for a term,
+      or looking up what courses an instructor teaches. Returns a formatted list of
+      matching courses with IDs, names, term info, and enrollment counts.
+      If no filters are provided, returns the most recent courses.
+    category: courses
+    params:
+      - name: query
+        type: str
+        required: false
+        description: >
+          Free-text search query matched against course name, course ID, and description.
+          Example: "Introduction to Biology" or "BIO101".
+      - name: term_id
+        type: str
+        required: false
+        description: >
+          Blackboard term ID to filter courses by academic term.
+          Accepts primary ID or externalId:{id} format.
+      - name: instructor_id
+        type: str
+        required: false
+        description: >
+          Filter to courses where this user is an instructor.
+          Accepts primary ID, userName:{username}, or externalId:{id}.
+      - name: limit
+        type: int
+        required: false
+        default: 20
+        description: >
+          Maximum number of courses to return (1-100). Defaults to 20.
+    rest_mapping:
+      method: GET
+      path: /v3/courses
+      query_map:
+        query: name
+        term_id: termId
+        limit: limit
+    response_format: |
+      ## Courses Found: {count}
+      {for each course}
+      - **{name}** (ID: {id})
+        Course ID: {courseId} | Term: {term} | Created: {date}
+        Enrollment: {count} students
+      {end}
+      {pagination hint if has_more}
+
+  - name: learn_get_course_details
+    description: >
+      Get comprehensive details about a specific Blackboard Learn course.
+      Use this when a user asks for information about a particular course,
+      including its settings, availability, enrollment counts, and metadata.
+      The course_id can be the primary numeric ID, or use externalId:{id},
+      courseId:{courseId}, or uuid:{uuid} format.
+    category: courses
+    params:
+      - name: course_id
+        type: str
+        required: true
+        description: >
+          The course identifier. Accepts multiple formats:
+          - Primary numeric ID (e.g., "_123_1")
+          - courseId:{id} (e.g., "courseId:BIO101-2025S")
+          - externalId:{id}
+          - uuid:{uuid}
+    rest_mapping:
+      method: GET
+      path: /v3/courses/{courseId}
+      path_map:
+        course_id: courseId
+    response_format: |
+      ## Course: {name}
+      - **Course ID**: {courseId}
+      - **ID**: {id}
+      - **Description**: {description}
+      - **Term**: {term}
+      - **Created**: {created}
+      - **Availability**: {availability}
+      - **Enrollment**: {enrollment_type}
+      - **Locale**: {locale}
+
+  - name: learn_list_enrollments
+    description: >
+      List users enrolled in a specific Blackboard Learn course, optionally
+      filtered by role. Use this when a user asks "who is in this course",
+      "list the students", "who are the TAs", or similar enrollment questions.
+      Returns a formatted roster with names, roles, and enrollment dates.
+    category: enrollments
+    params:
+      - name: course_id
+        type: str
+        required: true
+        description: >
+          The course to list enrollments for. Accepts primary ID,
+          courseId:{id}, externalId:{id}, or uuid:{uuid}.
+      - name: role
+        type: str
+        required: false
+        enum: ["Student", "Instructor", "TeachingAssistant", "Grader"]
+        description: >
+          Filter enrollments by course role. If omitted, returns all roles.
+          Valid values: Student, Instructor, TeachingAssistant, Grader.
+      - name: limit
+        type: int
+        required: false
+        default: 50
+        description: >
+          Maximum number of enrollments to return (1-200). Defaults to 50.
+    rest_mapping:
+      method: GET
+      path: /v1/courses/{courseId}/users
+      query_map:
+        role: role
+        limit: limit
+    response_format: |
+      ## Enrollments for {course}: {count} users
+      | Name | Username | Role | Enrolled |
+      |------|----------|------|----------|
+      {for each enrollment}
+      | {name} | {username} | {role} | {date} |
+      {end}
+
+  - name: learn_get_student_grades
+    description: >
+      Get all grades for a specific student in a specific course.
+      Use this when a user asks about a student's performance, grades,
+      or scores in a course. Returns all graded columns with scores,
+      status, and grade details. Both course_id and user_id support
+      Blackboard's flexible ID formats.
+    category: grades
+    params:
+      - name: course_id
+        type: str
+        required: true
+        description: >
+          The course identifier. Accepts primary ID, courseId:{id},
+          externalId:{id}, or uuid:{uuid}.
+      - name: user_id
+        type: str
+        required: true
+        description: >
+          The student identifier. Accepts primary ID, userName:{username},
+          externalId:{id}, or uuid:{uuid}.
+    rest_mapping:
+      method: GET
+      path: /v2/courses/{courseId}/gradebook/users/{userId}
+    response_format: |
+      ## Grades for {student} in {course}
+      | Column | Score | Grade | Status | Updated |
+      |--------|-------|-------|--------|---------|
+      {for each grade}
+      | {column_name} | {score}/{possible} | {grade} | {status} | {date} |
+      {end}
+
+  - name: learn_create_content
+    description: >
+      Create a new content item in a Blackboard Learn course. Use this when
+      a user wants to add a document, folder, link, or file placeholder to
+      a course's content area. You can create items at the top level of the
+      course or nested under an existing folder by specifying parent_id.
+    category: content
+    params:
+      - name: course_id
+        type: str
+        required: true
+        description: >
+          The course to add content to. Accepts primary ID, courseId:{id},
+          externalId:{id}, or uuid:{uuid}.
+      - name: parent_id
+        type: str
+        required: false
+        description: >
+          ID of the parent content folder. If omitted, the item is created
+          at the root of the course content tree.
+      - name: title
+        type: str
+        required: true
+        description: >
+          The title/name of the content item. This is what students will
+          see in the course content area.
+      - name: body
+        type: str
+        required: false
+        description: >
+          The HTML body content. Used for document and link types.
+          For links, include an anchor tag. For documents, any valid HTML.
+      - name: content_type
+        type: str
+        required: false
+        default: document
+        enum: ["document", "file", "folder", "link"]
+        description: >
+          The type of content to create:
+          - document: A rich text content item (default)
+          - file: A file placeholder (upload file separately)
+          - folder: A content folder to organize other items
+          - link: An external link (put URL in body)
+    rest_mapping:
+      method: POST
+      path: /v1/courses/{courseId}/contents
+      body_map:
+        title: title
+        body: body
+        contentHandler:
+          id: "resource/{content_type}"
+    response_format: |
+      ## Content Created
+      - **Title**: {title}
+      - **ID**: {id}
+      - **Type**: {content_type}
+      - **Parent**: {parent_id or "root"}
+      - **URL**: {url}
+
+  - name: learn_manage_announcement
+    description: >
+      Create, update, or delete an announcement in Blackboard Learn.
+      Announcements can be system-wide (no course_id) or course-specific
+      (with course_id). Use this when a user wants to post news, updates,
+      or notifications to students.
+    category: announcements
+    params:
+      - name: action
+        type: str
+        required: true
+        enum: ["create", "update", "delete"]
+        description: >
+          The action to perform:
+          - create: Post a new announcement
+          - update: Modify an existing announcement (requires announcement_id)
+          - delete: Remove an announcement (requires announcement_id)
+      - name: course_id
+        type: str
+        required: false
+        description: >
+          The course to post the announcement in. If omitted, creates a
+          system-wide announcement. Accepts primary ID, courseId:{id},
+          externalId:{id}, or uuid:{uuid}.
+      - name: announcement_id
+        type: str
+        required: false
+        description: >
+          The announcement ID. Required for update and delete actions.
+      - name: title
+        type: str
+        required: false
+        description: >
+          The announcement title. Required for create, optional for update.
+      - name: body
+        type: str
+        required: false
+        description: >
+          The announcement body in HTML format. Required for create,
+          optional for update.
+    rest_mapping:
+      # Dynamic based on action and course_id presence
+      method: "{action_method}"
+      path: "{computed_path}"
+    response_format: |
+      ## Announcement {action}d
+      - **Title**: {title}
+      - **ID**: {id}
+      - **Scope**: {course or "System-wide"}
+      - **Created**: {date}
+
+  - name: learn_get_user_info
+    description: >
+      Look up a Blackboard Learn user by ID, username, or external ID.
+      Use this when a user asks about a specific person, wants to find
+      someone's user ID, or needs user details like email, name, or
+      system roles. The identifier is flexible - you can pass a username,
+      an email pattern, or any supported ID format.
+    category: users
+    params:
+      - name: user_identifier
+        type: str
+        required: true
+        description: >
+          The user to look up. Accepts multiple formats:
+          - Primary numeric ID (e.g., "_123_1")
+          - userName:{username} (e.g., "userName:jsmith")
+          - externalId:{id} (e.g., "externalId:SIS12345")
+          - uuid:{uuid}
+          If a plain string without a prefix is given, it is treated as
+          a primary ID. Use userName: prefix for username lookups.
+    rest_mapping:
+      method: GET
+      path: /v1/users/{userId}
+      path_map:
+        user_identifier: userId
+    response_format: |
+      ## User: {name}
+      - **Username**: {userName}
+      - **ID**: {id}
+      - **Email**: {email}
+      - **Student ID**: {studentId}
+      - **System Roles**: {roles}
+      - **Created**: {created}
+      - **Last Login**: {lastLogin}
+      - **Availability**: {available}
+
+  - name: learn_submit_grade
+    description: >
+      Submit or update a grade for a student on a specific gradebook column
+      in a Blackboard Learn course. Use this when a user wants to grade a
+      student, update a score, or add feedback/notes to a grade entry.
+    category: grades
+    params:
+      - name: course_id
+        type: str
+        required: true
+        description: >
+          The course containing the gradebook. Accepts primary ID,
+          courseId:{id}, externalId:{id}, or uuid:{uuid}.
+      - name: column_id
+        type: str
+        required: true
+        description: >
+          The gradebook column ID to grade on. Use learn_get_student_grades
+          to find column IDs first.
+      - name: user_id
+        type: str
+        required: true
+        description: >
+          The student to grade. Accepts primary ID, userName:{username},
+          externalId:{id}, or uuid:{uuid}.
+      - name: score
+        type: float
+        required: true
+        description: >
+          The numeric score to assign. Must be within the column's
+          point range (e.g., 0-100 for a 100-point column).
+      - name: text
+        type: str
+        required: false
+        description: >
+          Optional text/letter grade override (e.g., "A", "Pass").
+          If omitted, the grade schema on the column determines display.
+      - name: notes
+        type: str
+        required: false
+        description: >
+          Optional private grading notes visible only to instructors.
+          Useful for recording grading rationale or feedback.
+    rest_mapping:
+      method: PATCH
+      path: /v2/courses/{courseId}/gradebook/columns/{columnId}/users/{userId}
+      body_map:
+        score: score
+        text: text
+        notes: notes
+    response_format: |
+      ## Grade Submitted
+      - **Course**: {course_id}
+      - **Column**: {column_id}
+      - **Student**: {user_id}
+      - **Score**: {score}
+      - **Text**: {text or "N/A"}
+      - **Notes**: {notes or "N/A"}
+
+  - name: learn_get_content_tree
+    description: >
+      Get the full content tree (table of contents) for a Blackboard Learn
+      course. Use this when a user asks "what's in this course", wants to
+      see the course structure, or needs to find content item IDs before
+      creating or modifying content. Returns a hierarchical tree view.
+    category: content
+    params:
+      - name: course_id
+        type: str
+        required: true
+        description: >
+          The course to get the content tree for. Accepts primary ID,
+          courseId:{id}, externalId:{id}, or uuid:{uuid}.
+    rest_mapping:
+      method: GET
+      path: /v1/courses/{courseId}/contents
+    response_format: |
+      ## Content Tree for {course}
+      {recursive tree}
+      - {folder_icon} **{title}** (ID: {id}, type: {type})
+        - {item_icon} {title} (ID: {id}, type: {type})
+      {end recursive}
+
+  - name: learn_manage_enrollment
+    description: >
+      Enroll or unenroll a user in a Blackboard Learn course. Use this
+      when a user wants to add someone to a course, remove them, or
+      change their enrollment role. The default role is Student.
+    category: enrollments
+    params:
+      - name: action
+        type: str
+        required: true
+        enum: ["enroll", "unenroll"]
+        description: >
+          The action to perform:
+          - enroll: Add the user to the course (creates or re-activates enrollment)
+          - unenroll: Remove the user from the course (deletes enrollment)
+      - name: course_id
+        type: str
+        required: true
+        description: >
+          The course to enroll/unenroll from. Accepts primary ID,
+          courseId:{id}, externalId:{id}, or uuid:{uuid}.
+      - name: user_id
+        type: str
+        required: true
+        description: >
+          The user to enroll/unenroll. Accepts primary ID,
+          userName:{username}, externalId:{id}, or uuid:{uuid}.
+      - name: role
+        type: str
+        required: false
+        default: Student
+        description: >
+          The course role for the enrollment. Defaults to "Student".
+          Common values: Student, Instructor, TeachingAssistant, Grader,
+          Guest, CourseBuilder.
+    rest_mapping:
+      enroll:
+        method: PUT
+        path: /v1/courses/{courseId}/users/{userId}
+        body_map:
+          courseRoleId: role
+      unenroll:
+        method: DELETE
+        path: /v1/courses/{courseId}/users/{userId}
+    response_format: |
+      ## Enrollment {action}ed
+      - **Course**: {course_id}
+      - **User**: {user_id}
+      - **Role**: {role}
+      - **Status**: {status}
+
+  - name: learn_get_calendar
+    description: >
+      Get calendar items (due dates, events, schedules) for a user or
+      course in Blackboard Learn. Use this when a user asks about
+      upcoming deadlines, due dates, scheduled events, or "what's coming up".
+      Can filter by date range and scope to a specific course.
+    category: courses
+    params:
+      - name: course_id
+        type: str
+        required: false
+        description: >
+          Scope calendar items to a specific course. If omitted, returns
+          calendar items across all of the user's courses. Accepts primary ID,
+          courseId:{id}, externalId:{id}, or uuid:{uuid}.
+      - name: since
+        type: str
+        required: false
+        description: >
+          Only return items on or after this date. ISO 8601 format
+          (e.g., "2025-01-15" or "2025-01-15T00:00:00Z"). Defaults to today.
+      - name: until
+        type: str
+        required: false
+        description: >
+          Only return items before this date. ISO 8601 format.
+          Defaults to 30 days from now.
+    rest_mapping:
+      method: GET
+      path: /v1/calendars/items
+      query_map:
+        course_id: courseId
+        since: since
+        until: until
+    response_format: |
+      ## Calendar Items
+      {for each item}
+      - **{title}** ({type})
+        Course: {course} | Due: {date} | Status: {status}
+      {end}
+
+  - name: learn_execute_api
+    description: >
+      Execute any Blackboard Learn REST API endpoint directly. This is an
+      escape hatch for operations not covered by the other tools. Use this
+      when you need to call a specific API endpoint that doesn't have a
+      dedicated tool, or when you need fine-grained control over the request.
+
+      IMPORTANT: Prefer the dedicated tools above when possible - they
+      provide better formatting and error handling. Only use this tool
+      when no dedicated tool exists for your use case.
+
+      The full API reference is at:
+      https://developer.blackboard.com/portal/docs/apis/rest/
+    category: dynamic
+    params:
+      - name: method
+        type: str
+        required: true
+        enum: ["GET", "POST", "PUT", "PATCH", "DELETE"]
+        description: >
+          HTTP method for the request.
+      - name: path
+        type: str
+        required: true
+        description: >
+          The API path relative to the base URL. Must start with /v1/, /v2/,
+          or /v3/. Examples:
+          - /v1/courses/{courseId}/groups
+          - /v1/system/version
+          - /v3/courses?name=Biology
+          Path parameters should be substituted before passing (use actual IDs).
+      - name: query_params
+        type: dict
+        required: false
+        description: >
+          Optional dictionary of query parameters. These are appended to
+          the URL as ?key=value pairs. Example: {"limit": 10, "offset": 0}
+      - name: body
+        type: dict
+        required: false
+        description: >
+          Optional JSON request body for POST, PUT, PATCH requests.
+          Pass as a dictionary that will be serialized to JSON.
+    rest_mapping:
+      method: "{method}"
+      path: "{path}"
+    response_format: |
+      ## API Response ({status_code})
+      {formatted JSON response}

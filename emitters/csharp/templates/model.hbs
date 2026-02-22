@@ -1,0 +1,20 @@
+using System;
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
+
+namespace {{namespace}}.Types;
+
+{{#if model.description}}
+/// <summary>{{singleLine model.description}}</summary>
+{{/if}}
+public record {{model.name}}
+{
+{{#each model.properties}}
+    {{#if description}}
+    /// <summary>{{singleLine description}}</summary>
+    {{/if}}
+    [JsonPropertyName("{{name}}")]
+    public {{#if required}}{{csType type}}{{else}}{{csNullableType type}}{{/if}} {{PascalCase name}} { get; init; }
+
+{{/each}}
+}

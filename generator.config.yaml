@@ -1,0 +1,181 @@
+sdk:
+  name: blackboard-learn
+  version: "1.0.0"
+  license: Apache-2.0
+
+api:
+  baseUrl: "https://{domain}/learn/api/public"
+  specUrl: "https://developer.blackboard.com/portal/docs/apis/learn-swagger.json"
+
+resources:
+  courses:
+    methods:
+      list: { operationId: "GetCourses" }
+      get: { operationId: "GetCourse" }
+      create: { operationId: "CreateCourse" }
+      update: { operationId: "UpdateCourse" }
+      delete: { operationId: "DeleteCourse" }
+    subresources:
+      contents:
+        methods:
+          list: { operationId: "GetContents" }
+          get: { operationId: "GetContent" }
+          create: { operationId: "CreateContent" }
+          update: { operationId: "UpdateContent" }
+          delete: { operationId: "DeleteContent" }
+        subresources:
+          children: {}
+          attachments: {}
+      memberships:
+        displayName: "Enrollments"
+        methods:
+          list: { operationId: "GetCourseMemberships" }
+          get: { operationId: "GetCourseMembership" }
+          create: { operationId: "CreateCourseMembership" }
+          update: { operationId: "UpdateCourseMembership" }
+          delete: { operationId: "DeleteCourseMembership" }
+      gradebook:
+        subresources:
+          columns:
+            methods:
+              list: { operationId: "GetGradebookColumns" }
+              get: { operationId: "GetGradebookColumn" }
+              create: { operationId: "CreateGradebookColumn" }
+              update: { operationId: "UpdateGradebookColumn" }
+              delete: { operationId: "DeleteGradebookColumn" }
+            subresources:
+              attempts: {}
+          schemas: {}
+      groups:
+        subresources:
+          users: {}
+      messages: {}
+      announcements: {}
+  users:
+    methods:
+      list: { operationId: "GetUsers" }
+      get: { operationId: "GetUser" }
+      create: { operationId: "CreateUser" }
+      update: { operationId: "UpdateUser" }
+      delete: { operationId: "DeleteUser" }
+    subresources:
+      sessions: {}
+      observees: {}
+  announcements:
+    methods:
+      list: { operationId: "GetSystemAnnouncements" }
+      get: { operationId: "GetSystemAnnouncement" }
+      create: { operationId: "CreateSystemAnnouncement" }
+      update: { operationId: "UpdateSystemAnnouncement" }
+      delete: { operationId: "DeleteSystemAnnouncement" }
+  calendars:
+    subresources:
+      items: {}
+  dataSources:
+    methods:
+      list: { operationId: "GetDataSources" }
+      get: { operationId: "GetDataSource" }
+      create: { operationId: "CreateDataSource" }
+      update: { operationId: "UpdateDataSource" }
+      delete: { operationId: "DeleteDataSource" }
+  terms:
+    methods:
+      list: { operationId: "GetTerms" }
+      get: { operationId: "GetTerm" }
+      create: { operationId: "CreateTerm" }
+      update: { operationId: "UpdateTerm" }
+      delete: { operationId: "DeleteTerm" }
+  roles: {}
+  lti:
+    subresources:
+      placements: {}
+  institutionHierarchy:
+    subresources:
+      nodes: {}
+
+pagination:
+  style: offset
+  offsetParam: offset
+  limitParam: limit
+  defaultLimit: 100
+  resultsField: results
+  pagingField: paging
+  nextPageField: paging.nextPage
+
+auth:
+  twoLegged:
+    tokenEndpoint: /learn/api/public/v1/oauth2/token
+    grantType: client_credentials
+  threeLegged:
+    authorizeEndpoint: /learn/api/public/v1/oauth2/authorizationcode
+    tokenEndpoint: /learn/api/public/v1/oauth2/token
+    grantType: authorization_code
+    pkce: true
+
+idFormats:
+  formats:
+    - "primary ID"
+    - "externalId:{id}"
+    - "userName:{name}"
+    - "uuid:{uuid}"
+  description: >
+    Blackboard Learn supports multiple ID formats. Primary keys are numeric.
+    Alternative lookups use prefixed formats: externalId:{id}, userName:{name}, uuid:{uuid}.
+
+naming:
+  collisions:
+    - canonical: announcements
+      contexts:
+        system: announcements
+        course: announcements  # Resolved by hierarchy: client.courses.announcements
+    - canonical: roles
+      contexts:
+        institution: roles
+        course: course_roles
+        system: system_roles
+
+languages:
+  python:
+    packageName: blackboard-learn
+    moduleName: blackboard_learn
+    minVersion: "3.12"
+    httpClient: httpx
+    models: pydantic
+    formatter: ruff
+  typescript:
+    packageName: "@blackboard/learn-sdk"
+    minVersion: "node22"
+    httpClient: fetch
+    formatter: prettier
+  java:
+    groupId: com.blackboard
+    artifactId: learn-sdk
+    minVersion: "21"
+    httpClient: java.net.http
+    models: jackson
+    formatter: google-java-format
+  csharp:
+    namespace: Blackboard.Learn
+    packageName: Blackboard.Learn
+    minVersion: "net9.0"
+    httpClient: HttpClient
+    models: System.Text.Json
+    formatter: dotnet-format
+  go:
+    module: "github.com/blackboard/learn-go"
+    minVersion: "1.24"
+    httpClient: net/http
+    formatter: gofmt
+  ruby:
+    gemName: blackboard_learn
+    moduleName: BlackboardLearn
+    minVersion: "3.4"
+    httpClient: faraday
+    formatter: rubocop
+
+mcp:
+  baseSdk: python
+  serverName: blackboard-learn-mcp
+  transport:
+    - stdio
+    - streamable-http

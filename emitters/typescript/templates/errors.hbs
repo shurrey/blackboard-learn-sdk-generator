@@ -1,0 +1,76 @@
+/**
+ * Structured error hierarchy for Blackboard Learn API errors.
+ *
+ * Auto-generated — do not edit manually.
+ */
+
+export class APIError extends Error {
+  readonly status: number;
+  readonly body: any;
+
+  constructor(message: string, status: number, body?: any) {
+    super(message);
+    this.name = 'APIError';
+    this.status = status;
+    this.body = body;
+  }
+}
+
+export class AuthenticationError extends APIError {
+  constructor(message: string, status: number, body?: any) {
+    super(message, status, body);
+    this.name = 'AuthenticationError';
+  }
+}
+
+export class PermissionError extends APIError {
+  constructor(message: string, status: number, body?: any) {
+    super(message, status, body);
+    this.name = 'PermissionError';
+  }
+}
+
+export class NotFoundError extends APIError {
+  constructor(message: string, status: number, body?: any) {
+    super(message, status, body);
+    this.name = 'NotFoundError';
+  }
+}
+
+export class BadRequestError extends APIError {
+  constructor(message: string, status: number, body?: any) {
+    super(message, status, body);
+    this.name = 'BadRequestError';
+  }
+}
+
+export class ConflictError extends APIError {
+  constructor(message: string, status: number, body?: any) {
+    super(message, status, body);
+    this.name = 'ConflictError';
+  }
+}
+
+export class RateLimitError extends APIError {
+  readonly retryAfter: string | null;
+
+  constructor(message: string, status: number, body?: any, retryAfter?: string | null) {
+    super(message, status, body);
+    this.name = 'RateLimitError';
+    this.retryAfter = retryAfter ?? null;
+  }
+}
+
+export class InternalServerError extends APIError {
+  constructor(message: string, status: number, body?: any) {
+    super(message, status, body);
+    this.name = 'InternalServerError';
+  }
+}
+
+export class ServiceUnavailableError extends APIError {
+  constructor(message: string, status: number, body?: any) {
+    super(message, status, body);
+    this.name = 'ServiceUnavailableError';
+  }
+}

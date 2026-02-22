@@ -1,0 +1,46 @@
+package learn
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+// APIError represents a Blackboard Learn API error.
+type APIError struct {
+	StatusCode   int
+	Message      string
+	ResponseBody string
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("API error %d: %s", e.StatusCode, e.Message)
+}
+
+// NewAPIError creates an APIError from the response.
+func NewAPIError(statusCode int, body string) *APIError {
+	message := body
+	var parsed struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal([]byte(body), &parsed); err == nil && parsed.Message != "" {
+		message = parsed.Message
+	}
+
+	return &APIError{
+		StatusCode:   statusCode,
+		Message:      message,
+		ResponseBody: body,
+	}
+}
+
+// IsAuthenticationError returns true for 401 errors.
+func (e *APIError) IsAuthenticationError() bool { return e.StatusCode == 401 }
+
+// IsPermissionError returns true for 403 errors.
+func (e *APIError) IsPermissionError() bool { return e.StatusCode == 403 }
+
+// IsNotFoundError returns true for 404 errors.
+func (e *APIError) IsNotFoundError() bool { return e.StatusCode == 404 }
+
+// IsRateLimitError returns true for 429 errors.
+func (e *APIError) IsRateLimitError() bool { return e.StatusCode == 429 }

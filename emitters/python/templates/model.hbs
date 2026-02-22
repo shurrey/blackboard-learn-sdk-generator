@@ -1,0 +1,53 @@
+"""
+{{model.name}} model.
+
+Auto-generated -- do not edit manually.
+"""
+
+from __future__ import annotations
+
+{{#if (needsDatetime model.properties)}}
+from datetime import datetime
+{{/if}}
+from typing import Optional
+
+from pydantic import BaseModel, Field
+{{#each importedTypes}}
+from .{{snakeCase @key}} import {{this}}
+{{/each}}
+
+
+{{#if model.description}}
+class {{model.name}}(BaseModel):
+    """{{model.description}}"""
+{{else}}
+class {{model.name}}(BaseModel):
+{{/if}}
+
+{{#each model.properties}}
+{{#if required}}
+{{#if description}}
+    {{snakeCase name}}: {{pyType type}} = Field(
+        {{#if (neq name (snakeCase name))}}alias="{{name}}",{{/if}}
+        description="{{pyFieldDescription description}}",
+    )
+{{else}}
+    {{snakeCase name}}: {{pyType type}}{{#if (neq name (snakeCase name))}} = Field(alias="{{name}}"){{/if}}
+{{/if}}
+{{else}}
+{{#if description}}
+    {{snakeCase name}}: Optional[{{pyType type}}] = Field(
+        default=None,
+        {{#if (neq name (snakeCase name))}}alias="{{name}}",{{/if}}
+        description="{{pyFieldDescription description}}",
+    )
+{{else}}
+    {{snakeCase name}}: Optional[{{pyType type}}] = {{#if (neq name (snakeCase name))}}Field(default=None, alias="{{name}}"){{else}}None{{/if}}
+{{/if}}
+{{/if}}
+{{/each}}
+{{#unless model.properties}}
+    pass
+{{/unless}}
+
+    model_config = {"populate_by_name": True}

@@ -1,0 +1,237 @@
+"""
+Blackboard Learn MCP tools: {{category}}.
+
+Auto-generated tool definitions for the {{category}} category.
+Each tool uses flat parameters with type hints for optimal agent ergonomics.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Literal
+
+from fastmcp import FastMCP
+
+from blackboard_learn_mcp.utils.formatters import (
+{{#if (eq category "courses")}}
+    format_course_list,
+    format_course_detail,
+    format_calendar_items,
+{{/if}}
+{{#if (eq category "users")}}
+    format_user_info,
+{{/if}}
+{{#if (eq category "content")}}
+    format_content_item,
+    format_content_tree,
+{{/if}}
+{{#if (eq category "grades")}}
+    format_student_grades,
+    format_grade_submission,
+{{/if}}
+{{#if (eq category "enrollments")}}
+    format_enrollment_list,
+    format_enrollment_action,
+{{/if}}
+{{#if (eq category "announcements")}}
+    format_announcement,
+{{/if}}
+)
+from blackboard_learn_mcp.utils.error_handler import handle_api_error
+
+logger = logging.getLogger(__name__)
+
+
+def register_{{category}}_tools(mcp: FastMCP, get_client):
+    """Register all {{category}} tools with the MCP server."""
+
+{{#each tools}}
+    @mcp.tool()
+    async def {{name}}(
+{{#each params}}
+{{#if required}}
+        {{name}}: {{#if enum}}Literal[{{#each enum}}"{{this}}"{{#unless @last}}, {{/unless}}{{/each}}]{{else}}{{type}}{{/if}},
+{{/if}}
+{{/each}}
+{{#each params}}
+{{#unless required}}
+{{#if default}}
+        {{name}}: {{#if enum}}Literal[{{#each enum}}"{{this}}"{{#unless @last}}, {{/unless}}{{/each}}]{{else}}{{type}}{{/if}} = {{#if (eq type "str")}}"{{default}}"{{else}}{{default}}{{/if}},
+{{else}}
+        {{name}}: {{#if enum}}Literal[{{#each enum}}"{{this}}"{{#unless @last}}, {{/unless}}{{/each}}]{{else}}{{type}}{{/if}} | None = None,
+{{/if}}
+{{/unless}}
+{{/each}}
+    ) -> str:
+        """{{description}}
+
+        Args:
+{{#each params}}
+            {{name}}: {{description}}
+{{/each}}
+
+        Returns:
+            Formatted text summary of the result, suitable for display to users.
+        """
+        try:
+            client = get_client()
+{{#if (eq name "learn_search_courses")}}
+            params = {}
+            if query is not None:
+                params["name"] = query
+            if term_id is not None:
+                params["termId"] = term_id
+            if instructor_id is not None:
+                params["instructorId"] = instructor_id
+            params["limit"] = limit
+
+            response = client.get("/v3/courses", params=params)
+            response.raise_for_status()
+            data = response.json()
+            return format_course_list(data)
+{{/if}}
+{{#if (eq name "learn_get_course_details")}}
+            response = client.get(f"/v3/courses/{course_id}")
+            response.raise_for_status()
+            data = response.json()
+            return format_course_detail(data)
+{{/if}}
+{{#if (eq name "learn_list_enrollments")}}
+            params = {"limit": limit}
+            if role is not None:
+                params["role"] = role
+
+            response = client.get(
+                f"/v1/courses/{course_id}/users", params=params
+            )
+            response.raise_for_status()
+            data = response.json()
+            return format_enrollment_list(data, course_id)
+{{/if}}
+{{#if (eq name "learn_get_student_grades")}}
+            response = client.get(
+                f"/v2/courses/{course_id}/gradebook/users/{user_id}"
+            )
+            response.raise_for_status()
+            data = response.json()
+            return format_student_grades(data, course_id, user_id)
+{{/if}}
+{{#if (eq name "learn_create_content")}}
+            body_data = {
+                "title": title,
+                "contentHandler": {"id": f"resource/{content_type}"},
+            }
+            if body is not None:
+                body_data["body"] = body
+
+            path = f"/v1/courses/{course_id}/contents"
+            if parent_id is not None:
+                path = f"/v1/courses/{course_id}/contents/{parent_id}/children"
+
+            response = client.post(path, json=body_data)
+            response.raise_for_status()
+            data = response.json()
+            return format_content_item(data, "created")
+{{/if}}
+{{#if (eq name "learn_manage_announcement")}}
+            if action == "create":
+                body_data = {"title": title, "body": body}
+                if course_id is not None:
+                    path = f"/v1/courses/{course_id}/announcements"
+                else:
+                    path = "/v1/announcements"
+                response = client.post(path, json=body_data)
+            elif action == "update":
+                if announcement_id is None:
+                    return "Error: announcement_id is required for update action."
+                body_data = {}
+                if title is not None:
+                    body_data["title"] = title
+                if body is not None:
+                    body_data["body"] = body
+                if course_id is not None:
+                    path = f"/v1/courses/{course_id}/announcements/{announcement_id}"
+                else:
+                    path = f"/v1/announcements/{announcement_id}"
+                response = client.patch(path, json=body_data)
+            elif action == "delete":
+                if announcement_id is None:
+                    return "Error: announcement_id is required for delete action."
+                if course_id is not None:
+                    path = f"/v1/courses/{course_id}/announcements/{announcement_id}"
+                else:
+                    path = f"/v1/announcements/{announcement_id}"
+                response = client.delete(path)
+            else:
+                return f"Error: Unknown action '{action}'. Use create, update, or delete."
+
+            response.raise_for_status()
+            if action == "delete":
+                return f"## Announcement Deleted\nAnnouncement {announcement_id} has been successfully deleted."
+            data = response.json()
+            return format_announcement(data, action)
+{{/if}}
+{{#if (eq name "learn_get_content_tree")}}
+            response = client.get(f"/v1/courses/{course_id}/contents")
+            response.raise_for_status()
+            data = response.json()
+            return format_content_tree(data, course_id)
+{{/if}}
+{{#if (eq name "learn_manage_enrollment")}}
+            if action == "enroll":
+                body_data = {"courseRoleId": role}
+                response = client.put(
+                    f"/v1/courses/{course_id}/users/{user_id}",
+                    json=body_data,
+                )
+                response.raise_for_status()
+                data = response.json()
+                return format_enrollment_action(data, "enrolled", course_id, user_id)
+            elif action == "unenroll":
+                response = client.delete(
+                    f"/v1/courses/{course_id}/users/{user_id}"
+                )
+                response.raise_for_status()
+                return format_enrollment_action(None, "unenrolled", course_id, user_id)
+            else:
+                return f"Error: Unknown action '{action}'. Use enroll or unenroll."
+{{/if}}
+{{#if (eq name "learn_get_calendar")}}
+            params = {}
+            if course_id is not None:
+                params["courseId"] = course_id
+            if since is not None:
+                params["since"] = since
+            if until is not None:
+                params["until"] = until
+
+            response = client.get("/v1/calendars/items", params=params)
+            response.raise_for_status()
+            data = response.json()
+            return format_calendar_items(data)
+{{/if}}
+{{#if (eq name "learn_submit_grade")}}
+            body_data = {"score": score}
+            if text is not None:
+                body_data["text"] = text
+            if notes is not None:
+                body_data["notes"] = notes
+
+            response = client.patch(
+                f"/v2/courses/{course_id}/gradebook/columns/{column_id}/users/{user_id}",
+                json=body_data,
+            )
+            response.raise_for_status()
+            data = response.json()
+            return format_grade_submission(data, course_id, column_id, user_id)
+{{/if}}
+{{#if (eq name "learn_get_user_info")}}
+            response = client.get(f"/v1/users/{user_identifier}")
+            response.raise_for_status()
+            data = response.json()
+            return format_user_info(data)
+{{/if}}
+        except Exception as e:
+            return handle_api_error(e, "{{name}}")
+
+{{/each}}

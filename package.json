@@ -1,0 +1,37 @@
+{
+  "name": "blackboard-learn-sdk-generator",
+  "version": "1.0.0",
+  "description": "Code generator for Blackboard Learn REST API SDKs",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "bin": {
+    "generate": "./dist/bin/generate.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx bin/generate.ts",
+    "generate": "tsx bin/generate.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src/ --ext .ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "handlebars": "^4.7.8",
+    "js-yaml": "^4.1.0",
+    "swagger2openapi": "^7.0.8",
+    "@apidevtools/swagger-parser": "^10.1.0",
+    "change-case": "^5.4.4"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.14.0",
+    "tsx": "^4.15.0",
+    "typescript": "^5.5.0",
+    "vitest": "^1.6.0"
+  },
+  "license": "Apache-2.0"
+}

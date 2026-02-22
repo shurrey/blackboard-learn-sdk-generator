@@ -1,0 +1,14 @@
+using System.Text.Json.Serialization;
+
+namespace {{namespace}}.Types;
+
+{{#if enumDef.description}}
+/// <summary>{{singleLine enumDef.description}}</summary>
+{{/if}}
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum {{enumDef.name}}
+{
+{{#each enumDef.values}}
+    {{PascalCase value}}{{#unless @last}},{{/unless}}
+{{/each}}
+}

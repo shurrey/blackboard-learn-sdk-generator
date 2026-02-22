@@ -1,0 +1,35 @@
+# frozen_string_literal: true
+
+module {{moduleName}}
+  {{#if model.description}}
+  # {{model.description}}
+  {{/if}}
+  class {{model.name}}
+{{#each model.properties}}
+    # @return [{{rubyType type}}{{#unless required}}, nil{{/unless}}]
+    attr_accessor :{{snakeCase name}}
+{{/each}}
+
+    # @param attrs [Hash]
+    def initialize(attrs = {})
+{{#each model.properties}}
+      @{{snakeCase name}} = attrs["{{name}}"]
+{{/each}}
+    end
+
+    # @param hash [Hash]
+    # @return [{{../moduleName}}::{{model.name}}]
+    def self.from_hash(hash)
+      new(hash)
+    end
+
+    # @return [Hash]
+    def to_hash
+      {
+{{#each model.properties}}
+        "{{name}}" => @{{snakeCase name}}{{#unless @last}},{{/unless}}
+{{/each}}
+      }.compact
+    end
+  end
+end

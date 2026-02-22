@@ -1,0 +1,13 @@
+/**
+ * {{enumDef.name}} enum
+ *
+ * Auto-generated — do not edit manually.
+ */
+
+{{#if enumDef.description}}
+/** {{enumDef.description}} */
+{{/if}}
+export type {{enumDef.name}} =
+{{#each enumDef.values}}
+  | '{{value}}'{{#if @last}};{{/if}}
+{{/each}}

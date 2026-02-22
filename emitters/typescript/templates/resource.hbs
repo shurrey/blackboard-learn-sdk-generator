@@ -1,0 +1,77 @@
+/**
+ * {{PascalCase resource.name}} resource
+ *
+ * Auto-generated — do not edit manually.
+ */
+
+import { HttpClient } from '../http-client.js';
+import { paginate } from '../pagination.js';
+{{#each imports}}
+import type { {{this}} } from '../types/{{@key}}.js';
+{{/each}}
+{{#each subresourceImports}}
+import { {{PascalCase this}}Resource } from './{{this}}.js';
+{{/each}}
+
+export class {{PascalCase resource.name}}Resource {
+  private client: HttpClient;
+
+{{#each resource.subresources}}
+  readonly {{camelCase name}}: {{PascalCase name}}Resource;
+{{/each}}
+
+  constructor(client: HttpClient) {
+    this.client = client;
+{{#each resource.subresources}}
+    this.{{camelCase name}} = new {{PascalCase name}}Resource(client);
+{{/each}}
+  }
+
+{{#each resource.methods}}
+  {{#if description}}
+  /** {{description}} */
+  {{/if}}
+  {{#ifPaginated this}}
+  {{camelCase name}}({{tsMethodParams this}}): AsyncIterable<{{tsType paginationConfig.itemType}}> {
+    return paginate<{{tsType paginationConfig.itemType}}>(this.client, '{{{path}}}', {
+      {{#each pathParams}}
+      '{{name}}': {{camelCase name}},
+      {{/each}}
+      {{#if (hasItems queryParams)}}
+      ...options,
+      {{/if}}
+    });
+  }
+  {{else}}
+  async {{camelCase name}}({{tsMethodParams this}}): Promise<{{tsType response.type}}> {
+    {{#if (eq (lowercase httpMethod) "get")}}
+    return this.client.get<{{tsType response.type}}>('{{{path}}}', {
+      pathParams: { {{#each pathParams}}'{{name}}': {{camelCase name}}{{#unless @last}}, {{/unless}}{{/each}} },
+      {{#if (hasItems queryParams)}}
+      queryParams: options,
+      {{/if}}
+    });
+    {{else if (eq (lowercase httpMethod) "post")}}
+    return this.client.post<{{tsType response.type}}>('{{{path}}}', {
+      pathParams: { {{#each pathParams}}'{{name}}': {{camelCase name}}{{#unless @last}}, {{/unless}}{{/each}} },
+      {{#ifHasBody this}}
+      body,
+      {{/ifHasBody}}
+    });
+    {{else if (or (eq (lowercase httpMethod) "put") (eq (lowercase httpMethod) "patch"))}}
+    return this.client.{{lowercase httpMethod}}<{{tsType response.type}}>('{{{path}}}', {
+      pathParams: { {{#each pathParams}}'{{name}}': {{camelCase name}}{{#unless @last}}, {{/unless}}{{/each}} },
+      {{#ifHasBody this}}
+      body,
+      {{/ifHasBody}}
+    });
+    {{else if (eq (lowercase httpMethod) "delete")}}
+    return this.client.delete<{{tsType response.type}}>('{{{path}}}', {
+      pathParams: { {{#each pathParams}}'{{name}}': {{camelCase name}}{{#unless @last}}, {{/unless}}{{/each}} },
+    });
+    {{/if}}
+  }
+  {{/ifPaginated}}
+
+{{/each}}
+}

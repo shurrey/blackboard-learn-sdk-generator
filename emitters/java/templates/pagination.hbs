@@ -1,0 +1,104 @@
+package {{basePackage}};
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.util.*;
+
+/**
+ * Auto-pagination iterator. Transparently iterates across all pages.
+ *
+ * <p>Auto-generated — do not edit manually.</p>
+ */
+public class PaginatedIterator<T> implements Iterator<T> {
+
+    private final HttpClient client;
+    private final String path;
+    private final Map<String, String> pathParams;
+    private final Class<T> itemType;
+    private final ObjectMapper mapper;
+
+    private final Queue<T> buffer = new LinkedList<>();
+    private String nextPageUrl;
+    private boolean done = false;
+    private int offset = 0;
+    private static final int LIMIT = {{pagination.defaultLimit}};
+
+    public PaginatedIterator(HttpClient client, String path, Map<String, String> pathParams, Class<T> itemType) {
+        this.client = client;
+        this.path = path;
+        this.pathParams = pathParams;
+        this.itemType = itemType;
+        this.mapper = client.getMapper();
+    }
+
+    @Override
+    public boolean hasNext() {
+        if (!buffer.isEmpty()) return true;
+        if (done) return false;
+        fetchNextPage();
+        return !buffer.isEmpty();
+    }
+
+    @Override
+    public T next() {
+        if (!hasNext()) throw new NoSuchElementException();
+        return buffer.poll();
+    }
+
+    private void fetchNextPage() {
+        try {
+            String url;
+            if (nextPageUrl != null) {
+                url = nextPageUrl;
+            } else {
+                url = buildUrl();
+            }
+
+            var response = client.rawRequest("GET", url);
+            if (response.statusCode() != 200) {
+                done = true;
+                return;
+            }
+
+            JsonNode root = mapper.readTree(response.body());
+            JsonNode results = root.get("results");
+
+            if (results == null || !results.isArray() || results.isEmpty()) {
+                done = true;
+                return;
+            }
+
+            for (JsonNode item : results) {
+                buffer.add(mapper.treeToValue(item, itemType));
+            }
+
+            JsonNode paging = root.get("paging");
+            if (paging != null && paging.has("nextPage")) {
+                String next = paging.get("nextPage").asText();
+                if (next.startsWith("http")) {
+                    nextPageUrl = next;
+                } else {
+                    nextPageUrl = client.getBaseUrl() + next;
+                }
+            } else {
+                done = true;
+            }
+
+            offset += results.size();
+
+        } catch (Exception e) {
+            done = true;
+            throw new RuntimeException("Pagination request failed", e);
+        }
+    }
+
+    private String buildUrl() {
+        String url = path;
+        for (Map.Entry<String, String> entry : pathParams.entrySet()) {
+            url = url.replace("{" + entry.getKey() + "}", entry.getValue());
+        }
+        String base = client.getBaseUrl() + url;
+        return base + (base.contains("?") ? "&" : "?") + "offset=" + offset + "&limit=" + LIMIT;
+    }
+}

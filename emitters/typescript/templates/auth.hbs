@@ -1,0 +1,164 @@
+/**
+ * OAuth 2.0 authentication helpers.
+ * Supports both two-legged (client_credentials) and three-legged (authorization_code + PKCE) flows.
+ *
+ * Auto-generated — do not edit manually.
+ */
+
+export interface AuthConfig {
+  baseUrl: string;
+  clientId: string;
+  clientSecret: string;
+  tokenEndpoint: string;
+  fetch?: typeof globalThis.fetch;
+}
+
+interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+}
+
+export class OAuth2Client {
+  private config: AuthConfig;
+  private accessToken: string | null = null;
+  private tokenExpiry: number = 0;
+  private refreshPromise: Promise<string> | null = null;
+  private fetchFn: typeof globalThis.fetch;
+
+  constructor(config: AuthConfig) {
+    this.config = config;
+    this.fetchFn = config.fetch ?? globalThis.fetch;
+  }
+
+  /**
+   * Set an externally obtained access token (e.g., from 3LO flow).
+   */
+  setAccessToken(token: string): void {
+    this.accessToken = token;
+    this.tokenExpiry = Date.now() + 3600 * 1000; // Assume 1hr if we don't know
+  }
+
+  /**
+   * Get a valid access token, refreshing via client_credentials if needed.
+   */
+  async getToken(): Promise<string> {
+    // Return existing valid token
+    if (this.accessToken && Date.now() < this.tokenExpiry - 60000) {
+      return this.accessToken;
+    }
+
+    // Prevent concurrent token refreshes
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.refreshPromise = this.fetchToken();
+    try {
+      const token = await this.refreshPromise;
+      return token;
+    } finally {
+      this.refreshPromise = null;
+    }
+  }
+
+  /**
+   * Generate a PKCE authorization URL for the three-legged OAuth flow.
+   */
+  async getAuthorizationUrl(options: {
+    redirectUri: string;
+    scope?: string;
+    state?: string;
+  }): Promise<{ url: string; codeVerifier: string }> {
+    const codeVerifier = this.generateCodeVerifier();
+    const codeChallenge = await this.generateCodeChallenge(codeVerifier);
+
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: this.config.clientId,
+      redirect_uri: options.redirectUri,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+    });
+
+    if (options.scope) params.set('scope', options.scope);
+    if (options.state) params.set('state', options.state);
+
+    const url = `${this.config.baseUrl}{{auth.threeLegged.authorizeEndpoint}}?${params}`;
+    return { url, codeVerifier };
+  }
+
+  /**
+   * Exchange an authorization code for tokens (three-legged flow).
+   */
+  async exchangeCode(code: string, redirectUri: string, codeVerifier: string): Promise<void> {
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: redirectUri,
+      code_verifier: codeVerifier,
+    });
+
+    const tokenUrl = `${this.config.baseUrl}${this.config.tokenEndpoint}`;
+    const response = await this.fetchFn(tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${btoa(`${this.config.clientId}:${this.config.clientSecret}`)}`,
+      },
+      body: body.toString(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Token exchange failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data: TokenResponse = await response.json();
+    this.accessToken = data.access_token;
+    this.tokenExpiry = Date.now() + data.expires_in * 1000;
+  }
+
+  private async fetchToken(): Promise<string> {
+    const tokenUrl = `${this.config.baseUrl}${this.config.tokenEndpoint}`;
+
+    const body = new URLSearchParams({
+      grant_type: 'client_credentials',
+    });
+
+    const response = await this.fetchFn(tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${btoa(`${this.config.clientId}:${this.config.clientSecret}`)}`,
+      },
+      body: body.toString(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`OAuth2 token request failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data: TokenResponse = await response.json();
+    this.accessToken = data.access_token;
+    this.tokenExpiry = Date.now() + data.expires_in * 1000;
+    return data.access_token;
+  }
+
+  private generateCodeVerifier(): string {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return this.base64UrlEncode(array);
+  }
+
+  private async generateCodeChallenge(verifier: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(verifier);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    return this.base64UrlEncode(new Uint8Array(digest));
+  }
+
+  private base64UrlEncode(buffer: Uint8Array): string {
+    const base64 = btoa(String.fromCharCode(...buffer));
+    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+}

@@ -1,0 +1,15 @@
+"""
+Resource modules for the Blackboard Learn SDK.
+
+Auto-generated -- do not edit manually.
+"""
+
+{{#each allResources}}
+from .{{snakeCase name}} import {{PascalCase name}}Resource
+{{/each}}
+
+__all__ = [
+{{#each allResources}}
+    "{{PascalCase name}}Resource",
+{{/each}}
+]

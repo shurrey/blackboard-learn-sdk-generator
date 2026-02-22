@@ -1,0 +1,12 @@
+package learn
+
+{{#if enumDef.description}}
+// {{enumDef.name}} {{singleLine enumDef.description}}
+{{/if}}
+type {{enumDef.name}} string
+
+const (
+{{#each enumDef.values}}
+	{{PascalCase ../enumDef.name}}{{PascalCase value}} {{../enumDef.name}} = "{{value}}"
+{{/each}}
+)

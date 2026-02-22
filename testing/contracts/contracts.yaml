@@ -1,0 +1,88 @@
+# Shared contract definitions for Blackboard Learn SDK testing.
+# These define expected shapes, ID formats, and pagination behaviors
+# that tests across all languages should validate.
+
+id_formats:
+  primary:
+    example: "_123_1"
+    pattern: "^_\\d+_\\d+$"
+  external:
+    example: "externalId:INTRO-101"
+    pattern: "^externalId:.+$"
+  username:
+    example: "userName:jsmith"
+    pattern: "^userName:.+$"
+  uuid:
+    example: "uuid:a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    pattern: "^uuid:[0-9a-f\\-]+$"
+
+pagination:
+  empty_response:
+    results: []
+    paging: null
+  single_page:
+    results:
+      - { id: "_1_1", name: "Item 1" }
+      - { id: "_2_1", name: "Item 2" }
+    paging: null
+  multi_page_first:
+    results:
+      - { id: "_1_1", name: "Item 1" }
+    paging:
+      nextPage: "/learn/api/public/v1/courses?offset=1&limit=1"
+  multi_page_last:
+    results:
+      - { id: "_2_1", name: "Item 2" }
+    paging: null
+
+error_responses:
+  bad_request:
+    status: 400
+    message: "Bad Request"
+  unauthorized:
+    status: 401
+    message: "Bearer realm=\"Learn\", error=\"invalid_token\""
+  forbidden:
+    status: 403
+    message: "Insufficient entitlements"
+  not_found:
+    status: 404
+    message: "The specified resource was not found"
+  rate_limited:
+    status: 429
+    message: "Rate limit exceeded"
+    headers:
+      Retry-After: "5"
+
+auth:
+  token_response:
+    access_token: "test-token-123"
+    token_type: "bearer"
+    expires_in: 3600
+
+sample_models:
+  course:
+    id: "_123_1"
+    externalId: "INTRO-101"
+    courseId: "INTRO-101"
+    name: "Introduction to Computer Science"
+    description: "An introductory course in CS"
+    availability:
+      available: "Yes"
+    enrollment:
+      type: "InstructorLed"
+  user:
+    id: "_456_1"
+    externalId: "jsmith"
+    userName: "jsmith"
+    name:
+      given: "John"
+      family: "Smith"
+    contact:
+      email: "jsmith@example.edu"
+  enrollment:
+    userId: "_456_1"
+    courseId: "_123_1"
+    courseRoleId: "Student"
+    availability:
+      available: "Yes"

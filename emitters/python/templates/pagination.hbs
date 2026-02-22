@@ -1,0 +1,259 @@
+"""
+Auto-pagination support.
+
+Transparently iterates across all pages of paginated endpoints.
+
+Auto-generated -- do not edit manually.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, AsyncIterator, Iterator
+
+if TYPE_CHECKING:
+    from ._http_client import HttpClient
+
+
+class SyncPage:
+    """A synchronous iterator that transparently pages through all results.
+
+    Usage::
+
+        for course in client.courses.list():
+            print(course["name"])
+    """
+
+    def __init__(
+        self,
+        client: HttpClient,
+        path: str,
+        path_params: dict[str, str],
+        query_params: dict[str, Any],
+        results_field: str = "{{pagination.resultsField}}",
+        limit: int = {{pagination.defaultLimit}},
+    ) -> None:
+        self._client = client
+        self._path = path
+        self._path_params = path_params
+        self._query_params = query_params
+        self._results_field = results_field
+        self._limit = limit
+        self._offset = 0
+        self._next_page_url: str | None = None
+        self._buffer: list[Any] = []
+        self._buffer_index = 0
+        self._done = False
+
+    def __iter__(self) -> Iterator[Any]:
+        return self
+
+    def __next__(self) -> Any:
+        # Return from buffer first
+        if self._buffer_index < len(self._buffer):
+            item = self._buffer[self._buffer_index]
+            self._buffer_index += 1
+            return item
+
+        if self._done:
+            raise StopIteration
+
+        # Fetch next page
+        data = self._fetch_page()
+
+        results = data.get(self._results_field, [])
+        if not results:
+            self._done = True
+            raise StopIteration
+
+        self._buffer = results
+        self._buffer_index = 1  # We return the first item below
+
+        # Check for next page
+        paging = data.get("{{pagination.pagingField}}", {})
+        next_page = paging.get("{{pagination.nextPageField}}")
+        if next_page:
+            self._next_page_url = next_page
+        else:
+            self._done = True
+
+        self._offset += len(results)
+        return self._buffer[0]
+
+    def _fetch_page(self) -> dict[str, Any]:
+        """Fetch the next page of results."""
+        if self._next_page_url:
+            response = self._client.raw_request("GET", self._next_page_url)
+        else:
+            from urllib.parse import quote
+
+            url = self._path
+            if self._path_params:
+                for key, value in self._path_params.items():
+                    url = url.replace(f"{{{key}}}", quote(str(value), safe=""))
+            full_url = f"{self._client._base_url}{url}"
+
+            merged_params = {
+                **self._query_params,
+                "{{pagination.offsetParam}}": self._offset,
+                "{{pagination.limitParam}}": self._limit,
+            }
+            response = self._client.raw_request(
+                "GET",
+                full_url,
+                query_params=merged_params,
+            )
+
+        if not response.is_success:
+            from ._errors import APIError
+
+            msg = f"Pagination request failed: {response.status_code}"
+            raise APIError(msg, status_code=response.status_code)
+
+        return response.json()
+
+    def collect(self) -> list[Any]:
+        """Collect all remaining results into a list.
+
+        Returns:
+            A list containing all items from the current position onward.
+        """
+        return list(self)
+
+
+class AsyncPage:
+    """An asynchronous iterator that transparently pages through all results.
+
+    Usage::
+
+        async for course in client.courses.list():
+            print(course["name"])
+    """
+
+    def __init__(
+        self,
+        async_client: Any,
+        path: str,
+        path_params: dict[str, str],
+        query_params: dict[str, Any],
+        results_field: str = "{{pagination.resultsField}}",
+        limit: int = {{pagination.defaultLimit}},
+    ) -> None:
+        self._client = async_client
+        self._path = path
+        self._path_params = path_params
+        self._query_params = query_params
+        self._results_field = results_field
+        self._limit = limit
+        self._offset = 0
+        self._next_page_url: str | None = None
+        self._buffer: list[Any] = []
+        self._buffer_index = 0
+        self._done = False
+
+    def __aiter__(self) -> AsyncIterator[Any]:
+        return self
+
+    async def __anext__(self) -> Any:
+        # Return from buffer first
+        if self._buffer_index < len(self._buffer):
+            item = self._buffer[self._buffer_index]
+            self._buffer_index += 1
+            return item
+
+        if self._done:
+            raise StopAsyncIteration
+
+        # Fetch next page
+        data = await self._fetch_page()
+
+        results = data.get(self._results_field, [])
+        if not results:
+            self._done = True
+            raise StopAsyncIteration
+
+        self._buffer = results
+        self._buffer_index = 1
+
+        paging = data.get("{{pagination.pagingField}}", {})
+        next_page = paging.get("{{pagination.nextPageField}}")
+        if next_page:
+            self._next_page_url = next_page
+        else:
+            self._done = True
+
+        self._offset += len(results)
+        return self._buffer[0]
+
+    async def _fetch_page(self) -> dict[str, Any]:
+        """Fetch the next page of results asynchronously."""
+        if self._next_page_url:
+            response = await self._client.raw_request("GET", self._next_page_url)
+        else:
+            from urllib.parse import quote
+
+            url = self._path
+            if self._path_params:
+                for key, value in self._path_params.items():
+                    url = url.replace(f"{{{key}}}", quote(str(value), safe=""))
+            full_url = f"{self._client._base_url}{url}"
+
+            merged_params = {
+                **self._query_params,
+                "{{pagination.offsetParam}}": self._offset,
+                "{{pagination.limitParam}}": self._limit,
+            }
+            response = await self._client.raw_request(
+                "GET",
+                full_url,
+                query_params=merged_params,
+            )
+
+        if not response.is_success:
+            from ._errors import APIError
+
+            msg = f"Pagination request failed: {response.status_code}"
+            raise APIError(msg, status_code=response.status_code)
+
+        return response.json()
+
+    async def collect(self) -> list[Any]:
+        """Collect all remaining results into a list.
+
+        Returns:
+            A list containing all items from the current position onward.
+        """
+        items: list[Any] = []
+        async for item in self:
+            items.append(item)
+        return items
+
+
+def paginate(
+    client: HttpClient,
+    path: str,
+    path_params: dict[str, str] | None = None,
+    query_params: dict[str, Any] | None = None,
+    results_field: str = "{{pagination.resultsField}}",
+    limit: int = {{pagination.defaultLimit}},
+) -> SyncPage:
+    """Create a synchronous paginator for a list endpoint.
+
+    Args:
+        client: The HTTP client to use for requests.
+        path: The API path template (e.g. ``/learn/api/public/v1/courses``).
+        path_params: Path parameter substitutions.
+        query_params: Additional query parameters.
+        results_field: The JSON key containing the results array.
+        limit: Number of results per page.
+
+    Returns:
+        A ``SyncPage`` iterator that transparently fetches all pages.
+    """
+    return SyncPage(
+        client=client,
+        path=path,
+        path_params=path_params or {},
+        query_params=query_params or {},
+        results_field=results_field,
+        limit=limit,
+    )

@@ -1,0 +1,256 @@
+"""
+OAuth 2.0 three-legged authentication for Blackboard Learn MCP server.
+
+Used when the MCP server runs in streamable-http transport mode and needs
+to authenticate on behalf of individual users via the authorization_code
+grant flow (with PKCE support).
+
+This module provides:
+    - Authorization URL generation with PKCE
+    - Token exchange from authorization code
+    - Token refresh
+    - Per-user session management
+
+Required environment variables:
+    BLACKBOARD_BASE_URL: The base URL of your Blackboard Learn instance
+    BLACKBOARD_CLIENT_ID: The OAuth 2.0 application key
+    BLACKBOARD_CLIENT_SECRET: The OAuth 2.0 application secret
+    BLACKBOARD_REDIRECT_URI: The redirect URI registered with the application
+"""
+
+from __future__ import annotations
+
+import os
+import time
+import secrets
+import hashlib
+import base64
+import logging
+from dataclasses import dataclass, field
+
+import httpx
+
+logger = logging.getLogger(__name__)
+
+# OAuth endpoints (relative to base URL)
+AUTHORIZE_ENDPOINT = "{{auth.threeLegged.authorizeEndpoint}}"
+TOKEN_ENDPOINT = "{{auth.threeLegged.tokenEndpoint}}"
+PKCE_ENABLED = {{#if auth.threeLegged.pkce}}True{{else}}False{{/if}}
+
+
+@dataclass
+class OAuthSession:
+    """Represents an authenticated user session."""
+
+    access_token: str
+    refresh_token: str | None = None
+    expires_at: float = 0
+    user_id: str | None = None
+
+    @property
+    def is_expired(self) -> bool:
+        """Check if the token is expired or about to expire."""
+        return time.time() >= self.expires_at - 60
+
+
+@dataclass
+class PKCEChallenge:
+    """PKCE code verifier and challenge pair."""
+
+    verifier: str = field(default_factory=lambda: secrets.token_urlsafe(64))
+    state: str = field(default_factory=lambda: secrets.token_urlsafe(32))
+
+    @property
+    def challenge(self) -> str:
+        """Generate the S256 code challenge from the verifier."""
+        digest = hashlib.sha256(self.verifier.encode("ascii")).digest()
+        return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+    @property
+    def challenge_method(self) -> str:
+        return "S256"
+
+
+class OAuthManager:
+    """Manages OAuth 2.0 three-legged authentication flow for Blackboard Learn.
+
+    Handles authorization URL generation, token exchange, refresh, and
+    per-user session tracking for the HTTP transport mode.
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        client_id: str,
+        client_secret: str,
+        redirect_uri: str,
+    ):
+        self.base_url = base_url.rstrip("/")
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.redirect_uri = redirect_uri
+        self._sessions: dict[str, OAuthSession] = {}
+        self._pending_pkce: dict[str, PKCEChallenge] = {}
+
+    def get_authorization_url(self, scope: str = "*") -> tuple[str, str]:
+        """Generate an authorization URL for the user to visit.
+
+        Args:
+            scope: OAuth scope (defaults to all).
+
+        Returns:
+            Tuple of (authorization_url, state) where state is used to
+            correlate the callback.
+        """
+        pkce = PKCEChallenge()
+        self._pending_pkce[pkce.state] = pkce
+
+        params = {
+            "response_type": "code",
+            "client_id": self.client_id,
+            "redirect_uri": self.redirect_uri,
+            "scope": scope,
+            "state": pkce.state,
+        }
+
+        if PKCE_ENABLED:
+            params["code_challenge"] = pkce.challenge
+            params["code_challenge_method"] = pkce.challenge_method
+
+        query = "&".join(f"{k}={v}" for k, v in params.items())
+        url = f"{self.base_url}{AUTHORIZE_ENDPOINT}?{query}"
+        return url, pkce.state
+
+    def exchange_code(self, code: str, state: str) -> OAuthSession:
+        """Exchange an authorization code for tokens.
+
+        Args:
+            code: The authorization code from the callback.
+            state: The state parameter to look up the PKCE verifier.
+
+        Returns:
+            An authenticated OAuthSession.
+
+        Raises:
+            ValueError: If the state doesn't match a pending PKCE challenge.
+        """
+        pkce = self._pending_pkce.pop(state, None)
+        if pkce is None:
+            raise ValueError(f"Unknown state: {state}. Possible CSRF or expired flow.")
+
+        data = {
+            "grant_type": "{{auth.threeLegged.grantType}}",
+            "code": code,
+            "redirect_uri": self.redirect_uri,
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+        }
+
+        if PKCE_ENABLED:
+            data["code_verifier"] = pkce.verifier
+
+        response = httpx.post(
+            f"{self.base_url}{TOKEN_ENDPOINT}",
+            data=data,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        response.raise_for_status()
+        token_data = response.json()
+
+        session = OAuthSession(
+            access_token=token_data["access_token"],
+            refresh_token=token_data.get("refresh_token"),
+            expires_at=time.time() + token_data.get("expires_in", 3600),
+            user_id=token_data.get("user_id"),
+        )
+
+        if session.user_id:
+            self._sessions[session.user_id] = session
+
+        return session
+
+    def refresh_session(self, session: OAuthSession) -> OAuthSession:
+        """Refresh an expired session using its refresh token.
+
+        Args:
+            session: The session to refresh.
+
+        Returns:
+            Updated OAuthSession with new tokens.
+
+        Raises:
+            ValueError: If the session has no refresh token.
+        """
+        if not session.refresh_token:
+            raise ValueError("Session has no refresh token. Re-authorization required.")
+
+        response = httpx.post(
+            f"{self.base_url}{TOKEN_ENDPOINT}",
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": session.refresh_token,
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        response.raise_for_status()
+        token_data = response.json()
+
+        session.access_token = token_data["access_token"]
+        session.refresh_token = token_data.get("refresh_token", session.refresh_token)
+        session.expires_at = time.time() + token_data.get("expires_in", 3600)
+
+        return session
+
+    def get_session(self, user_id: str) -> OAuthSession | None:
+        """Get an existing session for a user, refreshing if needed.
+
+        Args:
+            user_id: The Blackboard user ID.
+
+        Returns:
+            The session, or None if no session exists.
+        """
+        session = self._sessions.get(user_id)
+        if session is None:
+            return None
+
+        if session.is_expired and session.refresh_token:
+            try:
+                session = self.refresh_session(session)
+            except Exception:
+                logger.warning("Failed to refresh session for user %s", user_id)
+                del self._sessions[user_id]
+                return None
+
+        return session
+
+
+def get_oauth_manager() -> OAuthManager:
+    """Create an OAuth manager from environment variables.
+
+    Returns:
+        A configured OAuthManager instance.
+
+    Raises:
+        ValueError: If required environment variables are not set.
+    """
+    base_url = os.environ.get("BLACKBOARD_BASE_URL")
+    client_id = os.environ.get("BLACKBOARD_CLIENT_ID")
+    client_secret = os.environ.get("BLACKBOARD_CLIENT_SECRET")
+    redirect_uri = os.environ.get("BLACKBOARD_REDIRECT_URI")
+
+    if not all([base_url, client_id, client_secret, redirect_uri]):
+        raise ValueError(
+            "BLACKBOARD_BASE_URL, BLACKBOARD_CLIENT_ID, BLACKBOARD_CLIENT_SECRET, "
+            "and BLACKBOARD_REDIRECT_URI environment variables are all required "
+            "for three-legged OAuth authentication."
+        )
+
+    return OAuthManager(
+        base_url=base_url,
+        client_id=client_id,
+        client_secret=client_secret,
+        redirect_uri=redirect_uri,
+    )
