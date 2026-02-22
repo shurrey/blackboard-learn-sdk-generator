@@ -1,0 +1,199 @@
+# {{PascalCase resource.name}}
+
+{{#if resource.description}}
+{{resource.description}}
+{{/if}}
+
+{{#if resource.apiVersion}}
+> **API Version:** {{resource.apiVersion}}
+{{/if}}
+{{#if resource.deprecated}}
+> **Deprecated:** This resource is deprecated and may be removed in a future API version.
+{{/if}}
+
+{{#if resource.methods.length}}
+## Overview
+
+| Method | HTTP | Path | Description |
+|--------|------|------|-------------|
+{{#each resource.methods}}
+| [`{{name}}`](#{{name}}) | `{{httpMethod}}` | `{{path}}` | {{singleLine description}} |
+{{/each}}
+
+---
+
+{{#each resource.methods}}
+## `{{name}}`
+
+{{#if deprecated}}
+> **Deprecated:** This method is deprecated.
+{{/if}}
+
+{{#if description}}
+{{description}}
+{{/if}}
+
+{{#if (eq kind "list")}}
+> This is a **list** endpoint. It returns a collection of results and supports pagination.
+{{/if}}
+{{#if (eq kind "delete")}}
+> This is a **destructive** operation. The resource will be permanently removed.
+{{/if}}
+{{#if paginated}}
+> This endpoint is **paginated**. Results are returned in pages and the SDK handles iteration automatically.
+{{/if}}
+
+### Import
+
+```typescript
+import { Client } from '{{../langConfig.packageName}}';
+{{#if (eq kind "list")}}
+// Paginated results are returned as async iterables
+{{/if}}
+```
+
+### Signature
+
+```typescript
+client.{{camelCase ../resource.name}}.{{name}}({{tsMethodParams this}}): {{tsReturnType this}}
+```
+
+{{#if pathParams.length}}
+### Path Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+{{#each pathParams}}
+| `{{camelCase name}}` | `{{tsType type}}` | {{#if required}}Yes{{else}}No{{/if}} | {{#if description}}{{singleLine description}}{{else}}—{{/if}} |
+{{/each}}
+
+{{#if ../idFormats}}
+> **ID Formats:** Blackboard Learn supports multiple ID formats for path parameters: {{#each ../idFormats.formats}}`{{this}}`{{#unless @last}}, {{/unless}}{{/each}}.
+{{/if}}
+{{/if}}
+
+{{#if queryParams.length}}
+### Query Parameters
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+{{#each queryParams}}
+| `{{name}}` | `{{tsType type}}` | {{#if required}}Yes{{else}}No{{/if}} | {{#if defaultValue}}`{{defaultValue}}`{{else}}—{{/if}} | {{#if description}}{{singleLine description}}{{else}}—{{/if}} |
+{{/each}}
+{{#each queryParams}}
+{{#if enumValues}}
+
+**`{{name}}`** accepts the following values: {{#each enumValues}}`{{this}}`{{#unless @last}}, {{/unless}}{{/each}}
+{{/if}}
+{{/each}}
+{{/if}}
+
+{{#if requestBody}}
+### Request Body
+
+{{#if requestBody.description}}
+{{requestBody.description}}
+{{/if}}
+
+- **Content-Type:** `{{requestBody.contentType}}`
+- **Required:** {{#if requestBody.required}}Yes{{else}}No{{/if}}
+- **Type:** `{{tsType requestBody.type}}`
+{{/if}}
+
+### Example
+
+```typescript
+import { Client } from '{{../langConfig.packageName}}';
+{{#if (or (eq kind "get") (eq kind "list"))}}
+import { {{#if (not (isVoid response.type))}}{{tsType response.type}}{{/if}} } from '{{../langConfig.packageName}}';
+{{/if}}
+import { NotFoundError, RateLimitError, APIError } from '{{../langConfig.packageName}}';
+
+const client = new Client({
+  domain: 'your-institution.blackboard.com',
+  clientId: 'your-client-id',
+  clientSecret: 'your-client-secret',
+});
+
+try {
+{{#if (eq kind "list")}}
+{{#if paginated}}
+  for await (const item of client.{{camelCase ../resource.name}}.{{name}}({{#each pathParams}}'example-id'{{#unless @last}}, {{/unless}}{{/each}})) {
+    console.log(item);
+  }
+{{else}}
+  const result = await client.{{camelCase ../resource.name}}.{{name}}({{#each pathParams}}'example-id'{{#unless @last}}, {{/unless}}{{/each}});
+  console.log(result);
+{{/if}}
+{{else if (eq kind "get")}}
+  const item = await client.{{camelCase ../resource.name}}.{{name}}({{#each pathParams}}'example-id'{{#unless @last}}, {{/unless}}{{/each}});
+  console.log(item);
+{{else if (eq kind "create")}}
+{{#if requestBody}}
+  const result = await client.{{camelCase ../resource.name}}.{{name}}({{#each pathParams}}'example-id', {{/each}}{
+    // Provide request body fields here
+  });
+{{else}}
+  const result = await client.{{camelCase ../resource.name}}.{{name}}({{#each pathParams}}'example-id'{{#unless @last}}, {{/unless}}{{/each}});
+{{/if}}
+  console.log(result);
+{{else if (eq kind "update")}}
+{{#if requestBody}}
+  const result = await client.{{camelCase ../resource.name}}.{{name}}({{#each pathParams}}'example-id', {{/each}}{
+    // Provide fields to update
+  });
+{{else}}
+  const result = await client.{{camelCase ../resource.name}}.{{name}}({{#each pathParams}}'example-id'{{#unless @last}}, {{/unless}}{{/each}});
+{{/if}}
+  console.log(result);
+{{else if (eq kind "delete")}}
+  await client.{{camelCase ../resource.name}}.{{name}}({{#each pathParams}}'example-id'{{#unless @last}}, {{/unless}}{{/each}});
+  console.log('Deleted successfully');
+{{else}}
+  const result = await client.{{camelCase ../resource.name}}.{{name}}({{#each pathParams}}'example-id'{{#unless @last}}, {{/unless}}{{/each}});
+  console.log(result);
+{{/if}}
+} catch (err) {
+  if (err instanceof NotFoundError) {
+    console.error('Resource not found');
+  } else if (err instanceof RateLimitError) {
+    console.error(`Rate limited — retry after ${err.retryAfter}s`);
+  } else if (err instanceof APIError) {
+    console.error(`API error ${err.status}: ${err.message}`);
+  }
+}
+```
+
+### Response
+
+{{#if (isVoid response.type)}}
+This method returns no content (HTTP {{response.statusCode}}).
+{{else}}
+- **HTTP Status:** {{response.statusCode}}
+- **Return Type:** `{{tsType response.type}}`
+{{#if response.description}}
+- {{response.description}}
+{{/if}}
+{{#if paginated}}
+- Results are paginated. The SDK automatically iterates through all pages when using `for await`.
+{{/if}}
+{{/if}}
+
+### Error Codes
+
+| Status | Error Class | Description |
+|--------|-------------|-------------|
+| 400 | `BadRequestError` | The request was malformed or contained invalid parameters |
+| 401 | `AuthenticationError` | Access token is missing, expired, or invalid |
+| 403 | `PermissionError` | Insufficient privileges for the requested operation |
+| 404 | `NotFoundError` | The requested resource does not exist |
+| 409 | `ConflictError` | The request conflicts with current state (e.g., duplicate) |
+| 429 | `RateLimitError` | Too many requests — check `retryAfter` for wait time |
+| 500 | `InternalServerError` | An unexpected server error occurred |
+
+---
+
+{{/each}}
+{{/if}}
+
+*Auto-generated by the Blackboard Learn SDK Generator — do not edit manually.*

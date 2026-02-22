@@ -3,9 +3,18 @@
 require "faraday"
 require "base64"
 require "json"
+require "securerandom"
+require "digest"
 
 module {{moduleName}}
-  # OAuth 2.0 client for Blackboard Learn.
+  # Result of generating a PKCE authorization URL.
+  AuthorizationResult = Struct.new(:url, :code_verifier, keyword_init: true)
+
+  # OAuth 2.0 client supporting client_credentials and authorization_code + PKCE.
+  #
+  # Two-legged (client_credentials) authentication is handled automatically when
+  # calling {#get_token}. For three-legged flows, use {#get_authorization_url}
+  # and {#exchange_code}.
   class OAuth2Client
     def initialize(base_url:, client_id:, client_secret:, token_endpoint:)
       @base_url = base_url.chomp("/")
@@ -18,7 +27,7 @@ module {{moduleName}}
       @conn = Faraday.new(url: @base_url)
     end
 
-    # Set an externally obtained access token.
+    # Set an externally obtained access token (e.g., from 3LO flow).
     def set_access_token(token)
       @mutex.synchronize do
         @access_token = token
@@ -26,7 +35,7 @@ module {{moduleName}}
       end
     end
 
-    # Get a valid access token, refreshing if needed.
+    # Get a valid access token, refreshing via client_credentials if needed.
     def get_token
       @mutex.synchronize do
         if @access_token && @token_expiry && Time.now < @token_expiry - 60
@@ -34,6 +43,63 @@ module {{moduleName}}
         end
 
         fetch_token
+      end
+    end
+
+    # ── Three-legged OAuth (authorization_code + PKCE) ──────────────────────
+
+    # Generate a PKCE authorization URL for the three-legged OAuth flow.
+    #
+    # @param redirect_uri [String] The URI to redirect the user back to after authorization.
+    # @param scope [String, nil] Optional OAuth scope.
+    # @param state [String, nil] Optional state parameter for CSRF protection.
+    # @return [AuthorizationResult] The URL and code verifier.
+    def get_authorization_url(redirect_uri:, scope: nil, state: nil)
+      code_verifier = generate_code_verifier
+      code_challenge = generate_code_challenge(code_verifier)
+
+      params = {
+        response_type: "code",
+        client_id: @client_id,
+        redirect_uri: redirect_uri,
+        code_challenge: code_challenge,
+        code_challenge_method: "S256"
+      }
+      params[:scope] = scope if scope
+      params[:state] = state if state
+
+      query = URI.encode_www_form(params)
+      url = "#{@base_url}{{auth.threeLegged.authorizeEndpoint}}?#{query}"
+
+      AuthorizationResult.new(url: url, code_verifier: code_verifier)
+    end
+
+    # Exchange an authorization code for tokens (three-legged flow).
+    #
+    # @param code [String] The authorization code received from the callback.
+    # @param redirect_uri [String] The same redirect URI used in the authorization request.
+    # @param code_verifier [String] The PKCE code verifier from {#get_authorization_url}.
+    # @raise [RuntimeError] If the token exchange fails.
+    def exchange_code(code:, redirect_uri:, code_verifier:)
+      credentials = Base64.strict_encode64("#{@client_id}:#{@client_secret}")
+
+      response = @conn.post(@token_endpoint) do |req|
+        req.headers["Content-Type"] = "application/x-www-form-urlencoded"
+        req.headers["Authorization"] = "Basic #{credentials}"
+        req.body = URI.encode_www_form(
+          grant_type: "authorization_code",
+          code: code,
+          redirect_uri: redirect_uri,
+          code_verifier: code_verifier
+        )
+      end
+
+      raise "Token exchange failed: #{response.status}" unless response.success?
+
+      data = JSON.parse(response.body)
+      @mutex.synchronize do
+        @access_token = data["access_token"]
+        @token_expiry = Time.now + data.fetch("expires_in", 3600)
       end
     end
 
@@ -52,9 +118,18 @@ module {{moduleName}}
 
       data = JSON.parse(response.body)
       @access_token = data["access_token"]
-      @token_expiry = Time.now + data["expires_in"]
+      @token_expiry = Time.now + data.fetch("expires_in", 3600)
 
       @access_token
+    end
+
+    def generate_code_verifier
+      Base64.urlsafe_encode64(SecureRandom.random_bytes(32), padding: false)
+    end
+
+    def generate_code_challenge(verifier)
+      digest = Digest::SHA256.digest(verifier)
+      Base64.urlsafe_encode64(digest, padding: false)
     end
   end
 end

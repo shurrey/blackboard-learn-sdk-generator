@@ -1,0 +1,233 @@
+# {{PascalCase resource.name}}
+
+{{#if resource.description}}
+{{resource.description}}
+{{/if}}
+
+{{#if resource.apiVersion}}
+> **API Version:** {{resource.apiVersion}}
+{{/if}}
+{{#if resource.deprecated}}
+> **Deprecated:** This resource is deprecated and may be removed in a future API version.
+{{/if}}
+
+{{#if resource.methods.length}}
+## Overview
+
+| Method | HTTP | Path | Description |
+|--------|------|------|-------------|
+{{#each resource.methods}}
+| [`{{PascalCase name}}`](#{{PascalCase name}}) | `{{httpMethod}}` | `{{path}}` | {{singleLine description}} |
+{{/each}}
+
+---
+
+{{#each resource.methods}}
+## `{{PascalCase name}}`
+
+{{#if deprecated}}
+> **Deprecated:** This method is deprecated.
+{{/if}}
+
+{{#if description}}
+{{description}}
+{{/if}}
+
+{{#if (eq kind "list")}}
+> This is a **list** endpoint. It returns a collection of results and supports pagination.
+{{/if}}
+{{#if (eq kind "delete")}}
+> This is a **destructive** operation. The resource will be permanently removed.
+{{/if}}
+{{#if paginated}}
+> This endpoint is **paginated**. Results are returned via a Go 1.23+ iterator that automatically fetches subsequent pages.
+{{/if}}
+
+### Import
+
+```go
+import (
+    "context"
+    "errors"
+    "fmt"
+    learn "{{../goModule}}"
+)
+```
+
+### Signature
+
+```go
+func (r *{{PascalCase ../resource.name}}Resource) {{PascalCase name}}({{goMethodParams this}}) {{goReturnType this}}
+```
+
+{{#if pathParams.length}}
+### Path Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+{{#each pathParams}}
+| `{{camelCase name}}` | `{{goType type}}` | {{#if required}}Yes{{else}}No{{/if}} | {{#if description}}{{singleLine description}}{{else}}—{{/if}} |
+{{/each}}
+
+{{#if ../idFormats}}
+> **ID Formats:** Blackboard Learn supports multiple ID formats for path parameters: {{#each ../idFormats.formats}}`{{this}}`{{#unless @last}}, {{/unless}}{{/each}}.
+{{/if}}
+{{/if}}
+
+{{#if queryParams.length}}
+### Query Parameters
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+{{#each queryParams}}
+| `{{name}}` | `{{goType type}}` | {{#if required}}Yes{{else}}No{{/if}} | {{#if defaultValue}}`{{defaultValue}}`{{else}}—{{/if}} | {{#if description}}{{singleLine description}}{{else}}—{{/if}} |
+{{/each}}
+{{#each queryParams}}
+{{#if enumValues}}
+
+**`{{name}}`** accepts the following values: {{#each enumValues}}`{{this}}`{{#unless @last}}, {{/unless}}{{/each}}
+{{/if}}
+{{/each}}
+{{/if}}
+
+{{#if requestBody}}
+### Request Body
+
+{{#if requestBody.description}}
+{{requestBody.description}}
+{{/if}}
+
+- **Content-Type:** `{{requestBody.contentType}}`
+- **Required:** {{#if requestBody.required}}Yes{{else}}No{{/if}}
+- **Type:** `*{{goType requestBody.type}}`
+{{/if}}
+
+### Example
+
+```go
+package main
+
+import (
+    "context"
+    "errors"
+    "fmt"
+    "log"
+    learn "{{../goModule}}"
+)
+
+func main() {
+    client := learn.NewClient(
+        "your-institution.blackboard.com",
+        "your-client-id",
+        "your-client-secret",
+    )
+    ctx := context.Background()
+
+{{#if (eq kind "list")}}
+{{#if paginated}}
+    for item, err := range client.{{PascalCase ../resource.name}}().{{PascalCase name}}All(ctx{{#each pathParams}}, "example-id"{{/each}}) {
+        if err != nil {
+            log.Fatal(err)
+        }
+        fmt.Println(item)
+    }
+{{else}}
+    result, err := client.{{PascalCase ../resource.name}}().{{PascalCase name}}(ctx{{#each pathParams}}, "example-id"{{/each}})
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(result)
+{{/if}}
+{{else if (eq kind "get")}}
+    item, err := client.{{PascalCase ../resource.name}}().{{PascalCase name}}(ctx{{#each pathParams}}, "example-id"{{/each}})
+    if err != nil {
+        var apiErr *learn.APIError
+        if errors.As(err, &apiErr) {
+            if apiErr.IsNotFoundError() {
+                fmt.Println("Resource not found")
+            } else if apiErr.IsRateLimitError() {
+                fmt.Printf("Rate limited — retry after %s\n", apiErr.RetryAfter)
+            } else {
+                fmt.Printf("API error %d: %s\n", apiErr.StatusCode, apiErr.Message)
+            }
+        } else {
+            log.Fatal(err)
+        }
+    } else {
+        fmt.Println(item)
+    }
+{{else if (eq kind "create")}}
+{{#if requestBody}}
+    body := &learn.{{goType requestBody.type}}{
+        // Set body fields...
+    }
+    result, err := client.{{PascalCase ../resource.name}}().{{PascalCase name}}(ctx{{#each pathParams}}, "example-id"{{/each}}, body)
+{{else}}
+    result, err := client.{{PascalCase ../resource.name}}().{{PascalCase name}}(ctx{{#each pathParams}}, "example-id"{{/each}})
+{{/if}}
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(result)
+{{else if (eq kind "update")}}
+{{#if requestBody}}
+    body := &learn.{{goType requestBody.type}}{
+        // Set fields to update...
+    }
+    result, err := client.{{PascalCase ../resource.name}}().{{PascalCase name}}(ctx{{#each pathParams}}, "example-id"{{/each}}, body)
+{{else}}
+    result, err := client.{{PascalCase ../resource.name}}().{{PascalCase name}}(ctx{{#each pathParams}}, "example-id"{{/each}})
+{{/if}}
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(result)
+{{else if (eq kind "delete")}}
+    err := client.{{PascalCase ../resource.name}}().{{PascalCase name}}(ctx{{#each pathParams}}, "example-id"{{/each}})
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println("Deleted successfully")
+{{else}}
+    result, err := client.{{PascalCase ../resource.name}}().{{PascalCase name}}(ctx{{#each pathParams}}, "example-id"{{/each}})
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(result)
+{{/if}}
+}
+```
+
+### Response
+
+{{#if (isVoid response.type)}}
+This method returns no content (HTTP {{response.statusCode}}). Returns only `error`.
+{{else}}
+- **HTTP Status:** {{response.statusCode}}
+- **Return Type:** `(*{{goType response.type}}, error)`
+{{#if response.description}}
+- {{response.description}}
+{{/if}}
+{{#if paginated}}
+- Results are paginated. Use the `*All()` variant to get an iterator that automatically fetches subsequent pages.
+{{/if}}
+{{/if}}
+
+### Error Codes
+
+All errors are returned as `*learn.APIError`. Use the helper methods to identify the error type:
+
+| Status | Check Method | Description |
+|--------|-------------|-------------|
+| 401 | `IsAuthenticationError()` | Access token is missing, expired, or invalid |
+| 403 | `IsPermissionError()` | Insufficient privileges for the requested operation |
+| 404 | `IsNotFoundError()` | The requested resource does not exist |
+| 429 | `IsRateLimitError()` | Too many requests — check `RetryAfter` for wait time |
+| 400, 409, 500+ | Check `StatusCode` field | Other HTTP errors |
+
+---
+
+{{/each}}
+{{/if}}
+
+*Auto-generated by the Blackboard Learn SDK Generator — do not edit manually.*

@@ -1,0 +1,56 @@
+# frozen_string_literal: true
+
+# Integration tests for the Blackboard Learn Ruby SDK.
+# Runs against a Prism mock server.
+#
+# Auto-generated — do not edit manually.
+
+require "rspec"
+require "{{gemName}}"
+
+MOCK_SERVER_URL = ENV.fetch("MOCK_SERVER_URL", "http://127.0.0.1:4010")
+
+RSpec.describe "Integration Tests" do
+  let(:client) do
+    {{moduleName}}::Client.new(
+      domain: MOCK_SERVER_URL.sub(%r{^https?://}, ""),
+      client_id: "test-client-id",
+      client_secret: "test-client-secret",
+      base_url: MOCK_SERVER_URL + "/learn/api/public"
+    )
+  end
+
+{{#each resources}}
+  describe "{{PascalCase name}}" do
+{{#each methods}}
+{{#if (eq kind "list")}}
+    it "{{snakeCase name}} returns results" do
+      result = client.{{snakeCase ../name}}.{{snakeCase name}}({{#each pathParams}}"_1_1"{{#unless @last}}, {{/unless}}{{/each}})
+      expect(result).not_to be_nil
+    end
+
+{{else if (eq kind "get")}}
+    it "{{snakeCase name}} returns a resource" do
+      result = client.{{snakeCase ../name}}.{{snakeCase name}}({{#each pathParams}}"_1_1"{{#unless @last}}, {{/unless}}{{/each}})
+      expect(result).not_to be_nil
+    end
+
+{{/if}}
+{{/each}}
+  end
+
+{{/each}}
+  describe "Error Handling" do
+    it "raises an error for non-existent resource" do
+      expect {
+{{#each resources}}
+{{#each methods}}
+{{#if (eq kind "get")}}
+        client.{{snakeCase ../name}}.{{snakeCase name}}({{#each pathParams}}"non-existent-id"{{#unless @last}}, {{/unless}}{{/each}})
+{{/if}}
+{{/each}}
+{{/each}}
+      }.to raise_error({{moduleName}}::APIError)
+    end
+  end
+end

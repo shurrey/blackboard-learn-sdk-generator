@@ -2,6 +2,7 @@
  * Builds the complete SDKIR from a transformed OpenAPI 3.0 spec.
  */
 
+import { readFileSync } from 'node:fs';
 import type {
   SDKIR, Resource, Method, Parameter, RequestBody,
   MethodResponse, TypeRef, AuthConfig, PaginationConfig,
@@ -11,6 +12,8 @@ import { buildResourceTree, resourceNodeToIR, type ResourceNode } from './resour
 import { ModelResolver } from './model-resolver.js';
 import { detectPagination } from './pagination-detector.js';
 import { classifyMethod, disambiguateMethodName } from './method-classifier.js';
+
+const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
 
 export interface BuilderConfig {
   name: string;
@@ -60,7 +63,7 @@ export class IRBuilder {
       license: this.config.license,
       baseUrl: this.config.baseUrl,
       specVersion: this.spec.info?.version ?? 'unknown',
-      generatorVersion: '1.0.0',
+      generatorVersion: pkg.version,
       generatedAt: new Date().toISOString(),
       pathCount: Object.keys(this.spec.paths ?? {}).length,
       modelCount: models.length,

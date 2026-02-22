@@ -10,6 +10,7 @@ type APIError struct {
 	StatusCode   int
 	Message      string
 	ResponseBody string
+	RetryAfter   string
 }
 
 func (e *APIError) Error() string {
@@ -17,7 +18,7 @@ func (e *APIError) Error() string {
 }
 
 // NewAPIError creates an APIError from the response.
-func NewAPIError(statusCode int, body string) *APIError {
+func NewAPIError(statusCode int, body string, retryAfter string) *APIError {
 	message := body
 	var parsed struct {
 		Message string `json:"message"`
@@ -30,6 +31,7 @@ func NewAPIError(statusCode int, body string) *APIError {
 		StatusCode:   statusCode,
 		Message:      message,
 		ResponseBody: body,
+		RetryAfter:   retryAfter,
 	}
 }
 

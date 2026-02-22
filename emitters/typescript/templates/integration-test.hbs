@@ -1,0 +1,63 @@
+/**
+ * Integration tests for the Blackboard Learn TypeScript SDK.
+ * Runs against a Prism mock server at {{mockServerUrl}}.
+ *
+ * Auto-generated — do not edit manually.
+ */
+
+import { describe, it, expect, beforeAll } from 'vitest';
+import { Client } from '../src/client.js';
+import { NotFoundError, APIError } from '../src/errors.js';
+
+const MOCK_SERVER_URL = process.env.MOCK_SERVER_URL ?? 'http://127.0.0.1:4010';
+
+describe('Integration Tests', () => {
+  let client: Client;
+
+  beforeAll(() => {
+    // Create client pointing at mock server with a stub auth client
+    client = new Client({
+      domain: MOCK_SERVER_URL.replace(/^https?:\/\//, ''),
+      clientId: 'test-client-id',
+      clientSecret: 'test-client-secret',
+      baseUrl: MOCK_SERVER_URL + '/learn/api/public',
+    });
+  });
+
+{{#each resources}}
+  describe('{{PascalCase name}}', () => {
+{{#each methods}}
+{{#if (eq kind "list")}}
+    it('{{name}} should return results', async () => {
+      const result = await client.{{camelCase ../name}}.{{name}}({{#each pathParams}}'_1_1'{{#unless @last}}, {{/unless}}{{/each}});
+      expect(result).toBeDefined();
+    });
+
+{{else if (eq kind "get")}}
+    it('{{name}} should return a resource', async () => {
+      const result = await client.{{camelCase ../name}}.{{name}}({{#each pathParams}}'_1_1'{{#unless @last}}, {{/unless}}{{/each}});
+      expect(result).toBeDefined();
+    });
+
+{{/if}}
+{{/each}}
+  });
+
+{{/each}}
+  describe('Error Handling', () => {
+    it('should throw NotFoundError for non-existent resource', async () => {
+      try {
+{{#each resources}}
+{{#each methods}}
+{{#if (eq kind "get")}}
+        await client.{{camelCase ../name}}.{{name}}({{#each pathParams}}'non-existent-id'{{#unless @last}}, {{/unless}}{{/each}});
+        expect.fail('Expected NotFoundError');
+{{/if}}
+{{/each}}
+{{/each}}
+      } catch (err) {
+        expect(err).toBeInstanceOf(APIError);
+      }
+    });
+  });
+});

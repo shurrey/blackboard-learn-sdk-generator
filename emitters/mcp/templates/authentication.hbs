@@ -1,0 +1,245 @@
+# Authentication
+
+The Blackboard Learn MCP server supports multiple authentication modes for connecting to the Blackboard Learn REST API.
+
+## Overview
+
+| Mode | Use Case | User Interaction | Transport |
+|---|---|---|---|
+| **Client Credentials (2LO)** | Server-to-server, background agents, admin bots | None — fully automated | stdio or streamable-http |
+| **Pre-obtained Token** | Testing, external token management | None | stdio or streamable-http |
+| **Authorization Code + PKCE (3LO)** | Acting on behalf of a specific user | User authorizes in browser | stdio or streamable-http |
+
+The server selects the authentication mode based on which environment variables are set.
+
+---
+
+## Client Credentials (Two-Legged OAuth)
+
+The default mode. The MCP server authenticates as an application using OAuth 2.0 `client_credentials`. All API calls run with application-level permissions.
+
+### When to Use
+
+- Running as a Claude Desktop integration
+- Background automation and batch processing
+- Admin tools that don't need user-specific context
+- Any scenario where the server acts as itself, not a specific user
+
+### Configuration
+
+```bash
+export BLACKBOARD_BASE_URL="https://your-institution.blackboard.com"
+export BLACKBOARD_CLIENT_ID="your-application-key"
+export BLACKBOARD_CLIENT_SECRET="your-application-secret"
+```
+
+### Claude Desktop Configuration
+
+```json
+{
+  "mcpServers": {
+    "blackboard-learn": {
+      "command": "blackboard-learn-mcp",
+      "env": {
+        "BLACKBOARD_BASE_URL": "https://your-institution.blackboard.com",
+        "BLACKBOARD_CLIENT_ID": "your-application-key",
+        "BLACKBOARD_CLIENT_SECRET": "your-application-secret"
+      }
+    }
+  }
+}
+```
+
+### How It Works
+
+1. On the first API tool call, the server sends a `POST` to `{{auth.twoLegged.tokenEndpoint}}` with `grant_type=client_credentials`
+2. Blackboard returns an access token with an expiry time
+3. The server caches the token and reuses it for all subsequent tool calls
+4. When the token is within 60 seconds of expiry, the server automatically refreshes it
+5. Token management is transparent — AI agents never see tokens
+
+---
+
+## Pre-obtained Token
+
+For testing or when you manage tokens externally. Set `BLACKBOARD_API_TOKEN` to skip the OAuth flow entirely.
+
+### Configuration
+
+```bash
+export BLACKBOARD_BASE_URL="https://your-institution.blackboard.com"
+export BLACKBOARD_API_TOKEN="your-bearer-token"
+```
+
+### Claude Desktop Configuration
+
+```json
+{
+  "mcpServers": {
+    "blackboard-learn": {
+      "command": "blackboard-learn-mcp",
+      "env": {
+        "BLACKBOARD_BASE_URL": "https://your-institution.blackboard.com",
+        "BLACKBOARD_API_TOKEN": "your-bearer-token"
+      }
+    }
+  }
+}
+```
+
+### Important Notes
+
+- When `BLACKBOARD_API_TOKEN` is set, `BLACKBOARD_CLIENT_ID` and `BLACKBOARD_CLIENT_SECRET` are not required
+- The server cannot refresh a pre-obtained token — when it expires, API calls will fail
+- This mode is primarily for testing and debugging
+
+---
+
+## Authorization Code + PKCE (Three-Legged OAuth)
+
+When `BLACKBOARD_REDIRECT_URI` is set, the server enables three-legged OAuth, allowing it to act on behalf of a specific Blackboard Learn user. This is useful when the AI agent needs access to user-specific data (e.g., "my courses", "my grades").
+
+### When to Use
+
+- Web-based deployments where users log in to Blackboard
+- Acting as a specific student or instructor
+- Accessing user-specific data that client_credentials cannot reach
+- Multi-user deployments where different sessions need different permissions
+
+### Configuration
+
+```bash
+export BLACKBOARD_BASE_URL="https://your-institution.blackboard.com"
+export BLACKBOARD_CLIENT_ID="your-application-key"
+export BLACKBOARD_CLIENT_SECRET="your-application-secret"
+export BLACKBOARD_REDIRECT_URI="https://your-app.com/auth/callback"
+```
+
+### How It Works
+
+When `BLACKBOARD_REDIRECT_URI` is set, the server registers three additional MCP tools:
+
+| Tool | Description |
+|---|---|
+| `learn_auth_get_login_url` | Generates a Blackboard authorization URL for the user to visit |
+| `learn_auth_exchange_code` | Exchanges the authorization code for access tokens |
+| `learn_auth_status` | Checks the current authentication status |
+
+The AI agent uses these tools to drive the OAuth flow:
+
+```
+┌──────────┐     ┌──────────┐     ┌──────────────┐     ┌─────────────┐
+│ AI Agent │     │MCP Server│     │ User Browser │     │  Blackboard  │
+└────┬─────┘     └────┬─────┘     └──────┬───────┘     └──────┬───────┘
+     │                │                   │                     │
+     │  1. Call        │                   │                     │
+     │  learn_auth_    │                   │                     │
+     │  get_login_url  │                   │                     │
+     │───────────────> │                   │                     │
+     │  auth URL +     │                   │                     │
+     │  state          │                   │                     │
+     │ <───────────────│                   │                     │
+     │                 │                   │                     │
+     │  2. Present URL │                   │                     │
+     │  to user        │                   │                     │
+     │────────────────────────────────────>│                     │
+     │                 │                   │  3. User authorizes  │
+     │                 │                   │────────────────────> │
+     │                 │                   │  4. Redirect with    │
+     │                 │                   │     code + state     │
+     │                 │                   │<─────────────────────│
+     │  5. Call        │                   │                     │
+     │  learn_auth_    │                   │                     │
+     │  exchange_code  │                   │                     │
+     │───────────────> │                   │                     │
+     │                 │  6. Exchange code  │                     │
+     │                 │  for tokens        │                     │
+     │                 │──────────────────────────────────────── >│
+     │                 │  7. Access token   │                     │
+     │                 │<────────────────────────────────────────│
+     │  Authenticated  │                   │                     │
+     │ <───────────────│                   │                     │
+     │                 │                   │                     │
+     │  8. Subsequent  │                   │                     │
+     │  tool calls use │                   │                     │
+     │  user's token   │                   │                     │
+     │───────────────> │                   │                     │
+```
+
+### Agent Interaction Example
+
+An AI agent would use these tools like this:
+
+**Step 1:** The agent calls `learn_auth_get_login_url` to get an authorization URL.
+
+**Step 2:** The agent presents the URL to the user (e.g., "Please visit this URL to log in to Blackboard: ...").
+
+**Step 3:** The user clicks the URL, authorizes the app in their browser, and is redirected to the callback URL with a `code` and `state` parameter.
+
+**Step 4:** The user provides the `code` and `state` back to the agent (e.g., by pasting the callback URL or the parameters).
+
+**Step 5:** The agent calls `learn_auth_exchange_code` with the `code` and `state`.
+
+**Step 6:** All subsequent tool calls now run with the user's permissions.
+
+### Checking Auth Status
+
+The agent can call `learn_auth_status` at any time to check:
+
+```json
+// Before OAuth login
+{
+  "mode": "not_authenticated",
+  "authenticated": false,
+  "oauth_available": true,
+  "message": "Use learn_auth_get_login_url to start the OAuth flow."
+}
+
+// After client_credentials auth
+{
+  "mode": "client_credentials",
+  "authenticated": true,
+  "message": "Authenticated via client credentials (application context)."
+}
+
+// After OAuth login
+{
+  "mode": "oauth_user",
+  "authenticated": true,
+  "message": "Authenticated via three-legged OAuth (user context)."
+}
+```
+
+### Fallback Behavior
+
+- If the user has not completed the OAuth flow, the server falls back to `client_credentials` (if `BLACKBOARD_CLIENT_ID` and `BLACKBOARD_CLIENT_SECRET` are set)
+- Once the user authenticates via OAuth, all tool calls switch to using the user's token
+- If the user's token expires and cannot be refreshed, the server falls back to `client_credentials`
+
+---
+
+## Environment Variables Reference
+
+| Variable | Required | Description |
+|---|---|---|
+| `BLACKBOARD_BASE_URL` | Yes | Blackboard Learn instance URL (e.g., `https://your-institution.blackboard.com`) |
+| `BLACKBOARD_CLIENT_ID` | Yes* | OAuth 2.0 application key |
+| `BLACKBOARD_CLIENT_SECRET` | Yes* | OAuth 2.0 application secret |
+| `BLACKBOARD_API_TOKEN` | No | Pre-obtained bearer token (overrides client_credentials) |
+| `BLACKBOARD_REDIRECT_URI` | No | Redirect URI for 3LO (enables OAuth tools when set) |
+| `MCP_TRANSPORT` | No | Transport mode: `stdio` (default) or `streamable-http` |
+| `MCP_HTTP_PORT` | No | Port for streamable-http transport (default: `8000`) |
+
+\* Not required when `BLACKBOARD_API_TOKEN` is set.
+
+---
+
+## Security Best Practices
+
+1. **Never expose `BLACKBOARD_CLIENT_SECRET` in client-side code or public repositories.** Use environment variables or a secrets manager.
+2. **Use PKCE for all authorization code flows.** The MCP server enables PKCE by default when using 3LO.
+3. **Register your redirect URI** in the Blackboard Developer Portal. The redirect URI must match exactly.
+4. **Prefer `client_credentials`** for automated agents that don't need user context.
+5. **Use 3LO only when necessary** — when the agent needs to act as a specific user with their permissions.
+6. **Rotate client secrets** periodically through the Blackboard Developer Portal.
+7. **Limit token scope** when requesting authorization via 3LO.

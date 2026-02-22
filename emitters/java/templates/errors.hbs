@@ -22,6 +22,10 @@ public class APIError extends RuntimeException {
     public String getResponseBody() { return responseBody; }
 
     public static APIError fromResponse(int statusCode, String body) {
+        return fromResponse(statusCode, body, null);
+    }
+
+    public static APIError fromResponse(int statusCode, String body, String retryAfter) {
         String message;
         try {
             var mapper = new ObjectMapper();
@@ -37,7 +41,7 @@ public class APIError extends RuntimeException {
             case 403 -> new PermissionError(message, statusCode, body);
             case 404 -> new NotFoundError(message, statusCode, body);
             case 409 -> new ConflictError(message, statusCode, body);
-            case 429 -> new RateLimitError(message, statusCode, body);
+            case 429 -> new RateLimitError(message, statusCode, body, retryAfter);
             default -> new APIError(message, statusCode, body);
         };
     }
@@ -64,5 +68,12 @@ class ConflictError extends APIError {
 }
 
 class RateLimitError extends APIError {
-    public RateLimitError(String message, int status, String body) { super(message, status, body); }
+    private final String retryAfter;
+
+    public RateLimitError(String message, int status, String body, String retryAfter) {
+        super(message, status, body);
+        this.retryAfter = retryAfter;
+    }
+
+    public String getRetryAfter() { return retryAfter; }
 }

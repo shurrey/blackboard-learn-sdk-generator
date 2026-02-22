@@ -101,11 +101,20 @@ module {{moduleName}}
           return response.status == 204 ? nil : response.body
         end
 
-        unless RETRY_STATUS_CODES.include?(response.status) || attempt < @max_retries
-          raise APIError.from_response(response.status, response.body)
+        unless RETRY_STATUS_CODES.include?(response.status) && attempt < @max_retries
+          raise APIError.from_response(response.status, response.body, response.headers["Retry-After"])
         end
 
-        delay = [INITIAL_RETRY_DELAY * (2**attempt) + rand * 0.1, MAX_RETRY_DELAY].min
+        retry_after = response.headers["Retry-After"]
+        delay = if retry_after
+                  begin
+                    Integer(retry_after)
+                  rescue ArgumentError
+                    [INITIAL_RETRY_DELAY * (2**attempt) + rand * 0.1, MAX_RETRY_DELAY].min
+                  end
+                else
+                  [INITIAL_RETRY_DELAY * (2**attempt) + rand * 0.1, MAX_RETRY_DELAY].min
+                end
         sleep(delay)
       end
     end

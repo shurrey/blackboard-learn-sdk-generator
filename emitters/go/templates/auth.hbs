@@ -2,6 +2,8 @@ package learn
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -13,6 +15,10 @@ import (
 )
 
 // OAuth2Client handles OAuth 2.0 authentication.
+//
+// Two-legged (client_credentials) authentication is handled automatically when
+// calling GetToken(). For three-legged flows, use GetAuthorizationURL() and
+// ExchangeCode().
 type OAuth2Client struct {
 	baseURL       string
 	clientID      string
@@ -29,6 +35,14 @@ type tokenResponse struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
 	ExpiresIn   int    `json:"expires_in"`
+}
+
+// AuthorizationResult holds the authorization URL and PKCE code verifier.
+type AuthorizationResult struct {
+	// URL is the authorization URL to redirect the user to.
+	URL string
+	// CodeVerifier is the PKCE code verifier — store this and pass it to ExchangeCode().
+	CodeVerifier string
 }
 
 // NewOAuth2Client creates a new OAuth2Client.
@@ -62,6 +76,94 @@ func (o *OAuth2Client) GetToken(ctx context.Context) (string, error) {
 	return o.fetchToken(ctx)
 }
 
+// ── Three-legged OAuth (authorization_code + PKCE) ─────────────────────────
+
+// GetAuthorizationURL generates a PKCE authorization URL for the three-legged
+// OAuth flow.
+//
+// Parameters:
+//   - redirectURI: The URI to redirect the user back to after authorization.
+//   - scope: Optional OAuth scope (pass empty string to omit).
+//   - state: Optional state parameter for CSRF protection (pass empty string to omit).
+func (o *OAuth2Client) GetAuthorizationURL(redirectURI, scope, state string) (*AuthorizationResult, error) {
+	codeVerifier, err := generateCodeVerifier()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate code verifier: %w", err)
+	}
+
+	codeChallenge := generateCodeChallenge(codeVerifier)
+
+	params := url.Values{
+		"response_type":         {"code"},
+		"client_id":             {o.clientID},
+		"redirect_uri":          {redirectURI},
+		"code_challenge":        {codeChallenge},
+		"code_challenge_method": {"S256"},
+	}
+
+	if scope != "" {
+		params.Set("scope", scope)
+	}
+	if state != "" {
+		params.Set("state", state)
+	}
+
+	authURL := o.baseURL + "{{auth.threeLegged.authorizeEndpoint}}" + "?" + params.Encode()
+
+	return &AuthorizationResult{
+		URL:          authURL,
+		CodeVerifier: codeVerifier,
+	}, nil
+}
+
+// ExchangeCode exchanges an authorization code for tokens (three-legged flow).
+//
+// Parameters:
+//   - code: The authorization code received from the callback.
+//   - redirectURI: The same redirect URI used in the authorization request.
+//   - codeVerifier: The PKCE code verifier from GetAuthorizationURL().
+func (o *OAuth2Client) ExchangeCode(ctx context.Context, code, redirectURI, codeVerifier string) error {
+	data := url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {code},
+		"redirect_uri":  {redirectURI},
+		"code_verifier": {codeVerifier},
+	}
+
+	credentials := base64.StdEncoding.EncodeToString([]byte(o.clientID + ":" + o.clientSecret))
+
+	req, err := http.NewRequestWithContext(ctx, "POST", o.baseURL+o.tokenEndpoint, strings.NewReader(data.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Authorization", "Basic "+credentials)
+
+	resp, err := o.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("token exchange failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("token exchange failed with status %d", resp.StatusCode)
+	}
+
+	var tokenResp tokenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		return fmt.Errorf("failed to decode token response: %w", err)
+	}
+
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.accessToken = tokenResp.AccessToken
+	o.tokenExpiry = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
+
+	return nil
+}
+
+// ── Private helpers ─────────────────────────────────────────────────────────
+
 func (o *OAuth2Client) fetchToken(ctx context.Context) (string, error) {
 	data := url.Values{"grant_type": {"client_credentials"}}
 	credentials := base64.StdEncoding.EncodeToString([]byte(o.clientID + ":" + o.clientSecret))
@@ -92,4 +194,17 @@ func (o *OAuth2Client) fetchToken(ctx context.Context) (string, error) {
 	o.tokenExpiry = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
 
 	return o.accessToken, nil
+}
+
+func generateCodeVerifier() (string, error) {
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(bytes), nil
+}
+
+func generateCodeChallenge(verifier string) string {
+	hash := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(hash[:])
 }

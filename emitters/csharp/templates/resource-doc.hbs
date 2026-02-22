@@ -1,0 +1,202 @@
+# {{PascalCase resource.name}}
+
+{{#if resource.description}}
+{{resource.description}}
+{{/if}}
+
+{{#if resource.apiVersion}}
+> **API Version:** {{resource.apiVersion}}
+{{/if}}
+{{#if resource.deprecated}}
+> **Deprecated:** This resource is deprecated and may be removed in a future API version.
+{{/if}}
+
+{{#if resource.methods.length}}
+## Overview
+
+| Method | HTTP | Path | Description |
+|--------|------|------|-------------|
+{{#each resource.methods}}
+| [`{{PascalCase name}}Async`](#{{PascalCase name}}async) | `{{httpMethod}}` | `{{path}}` | {{singleLine description}} |
+{{/each}}
+
+---
+
+{{#each resource.methods}}
+## `{{PascalCase name}}Async`
+
+{{#if deprecated}}
+> **Deprecated:** This method is deprecated.
+{{/if}}
+
+{{#if description}}
+{{description}}
+{{/if}}
+
+{{#if (eq kind "list")}}
+> This is a **list** endpoint. It returns a collection of results and supports pagination.
+{{/if}}
+{{#if (eq kind "delete")}}
+> This is a **destructive** operation. The resource will be permanently removed.
+{{/if}}
+{{#if paginated}}
+> This endpoint is **paginated**. Results are returned as an `IAsyncEnumerable` that automatically fetches subsequent pages.
+{{/if}}
+
+### Import
+
+```csharp
+using {{../namespace}};
+```
+
+### Signature
+
+```csharp
+public async {{csReturnType this}} {{PascalCase name}}Async({{csMethodParams this}}, CancellationToken ct = default)
+```
+
+{{#if pathParams.length}}
+### Path Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+{{#each pathParams}}
+| `{{camelCase name}}` | `{{csType type}}` | {{#if required}}Yes{{else}}No{{/if}} | {{#if description}}{{singleLine description}}{{else}}—{{/if}} |
+{{/each}}
+
+{{#if ../idFormats}}
+> **ID Formats:** Blackboard Learn supports multiple ID formats for path parameters: {{#each ../idFormats.formats}}`{{this}}`{{#unless @last}}, {{/unless}}{{/each}}.
+{{/if}}
+{{/if}}
+
+{{#if queryParams.length}}
+### Query Parameters
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+{{#each queryParams}}
+| `{{name}}` | `{{csType type}}` | {{#if required}}Yes{{else}}No{{/if}} | {{#if defaultValue}}`{{defaultValue}}`{{else}}—{{/if}} | {{#if description}}{{singleLine description}}{{else}}—{{/if}} |
+{{/each}}
+{{#each queryParams}}
+{{#if enumValues}}
+
+**`{{name}}`** accepts the following values: {{#each enumValues}}`{{this}}`{{#unless @last}}, {{/unless}}{{/each}}
+{{/if}}
+{{/each}}
+{{/if}}
+
+{{#if requestBody}}
+### Request Body
+
+{{#if requestBody.description}}
+{{requestBody.description}}
+{{/if}}
+
+- **Content-Type:** `{{requestBody.contentType}}`
+- **Required:** {{#if requestBody.required}}Yes{{else}}No{{/if}}
+- **Type:** `{{csType requestBody.type}}`
+{{/if}}
+
+### Example
+
+```csharp
+using {{../namespace}};
+
+var client = new Client(
+    domain: "your-institution.blackboard.com",
+    clientId: "your-client-id",
+    clientSecret: "your-client-secret"
+);
+
+try
+{
+{{#if (eq kind "list")}}
+{{#if paginated}}
+    await foreach (var item in client.{{PascalCase ../resource.name}}.{{PascalCase name}}AllAsync({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}}))
+    {
+        Console.WriteLine(item);
+    }
+{{else}}
+    var result = await client.{{PascalCase ../resource.name}}.{{PascalCase name}}Async({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}});
+    Console.WriteLine(result);
+{{/if}}
+{{else if (eq kind "get")}}
+    var item = await client.{{PascalCase ../resource.name}}.{{PascalCase name}}Async({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}});
+    Console.WriteLine(item);
+{{else if (eq kind "create")}}
+{{#if requestBody}}
+    var body = new {{csType requestBody.type}}
+    {
+        // Set body fields...
+    };
+    var result = await client.{{PascalCase ../resource.name}}.{{PascalCase name}}Async({{#each pathParams}}"example-id", {{/each}}body);
+{{else}}
+    var result = await client.{{PascalCase ../resource.name}}.{{PascalCase name}}Async({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}});
+{{/if}}
+    Console.WriteLine(result);
+{{else if (eq kind "update")}}
+{{#if requestBody}}
+    var body = new {{csType requestBody.type}}
+    {
+        // Set fields to update...
+    };
+    var result = await client.{{PascalCase ../resource.name}}.{{PascalCase name}}Async({{#each pathParams}}"example-id", {{/each}}body);
+{{else}}
+    var result = await client.{{PascalCase ../resource.name}}.{{PascalCase name}}Async({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}});
+{{/if}}
+    Console.WriteLine(result);
+{{else if (eq kind "delete")}}
+    await client.{{PascalCase ../resource.name}}.{{PascalCase name}}Async({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}});
+    Console.WriteLine("Deleted successfully");
+{{else}}
+    var result = await client.{{PascalCase ../resource.name}}.{{PascalCase name}}Async({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}});
+    Console.WriteLine(result);
+{{/if}}
+}
+catch (NotFoundError e)
+{
+    Console.Error.WriteLine("Resource not found");
+}
+catch (RateLimitError e)
+{
+    Console.Error.WriteLine($"Rate limited — retry after {e.RetryAfter}s");
+}
+catch (APIError e)
+{
+    Console.Error.WriteLine($"API error {e.Status}: {e.Message}");
+}
+```
+
+### Response
+
+{{#if (isVoid response.type)}}
+This method returns no content (HTTP {{response.statusCode}}).
+{{else}}
+- **HTTP Status:** {{response.statusCode}}
+- **Return Type:** `{{csType response.type}}`
+{{#if response.description}}
+- {{response.description}}
+{{/if}}
+{{#if paginated}}
+- Results are paginated. Use the `*AllAsync()` variant to get an `IAsyncEnumerable` that automatically fetches subsequent pages.
+{{/if}}
+{{/if}}
+
+### Error Codes
+
+| Status | Exception | Description |
+|--------|-----------|-------------|
+| 400 | `BadRequestError` | The request was malformed or contained invalid parameters |
+| 401 | `AuthenticationError` | Access token is missing, expired, or invalid |
+| 403 | `PermissionError` | Insufficient privileges for the requested operation |
+| 404 | `NotFoundError` | The requested resource does not exist |
+| 409 | `ConflictError` | The request conflicts with current state (e.g., duplicate) |
+| 429 | `RateLimitError` | Too many requests — check `RetryAfter` for wait time |
+| 500+ | `APIError` | An unexpected server error occurred |
+
+---
+
+{{/each}}
+{{/if}}
+
+*Auto-generated by the Blackboard Learn SDK Generator — do not edit manually.*

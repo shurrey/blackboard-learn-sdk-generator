@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -113,7 +114,7 @@ func (c *HTTPClient) request(ctx context.Context, method, path string, pathParam
 			if attempt == c.maxRetries {
 				return fmt.Errorf("request failed: %w", err)
 			}
-			time.Sleep(c.retryDelay(attempt))
+			time.Sleep(c.retryDelay(nil, attempt))
 			continue
 		}
 		defer resp.Body.Close()
@@ -127,11 +128,11 @@ func (c *HTTPClient) request(ctx context.Context, method, path string, pathParam
 
 		if !retryStatusCodes[resp.StatusCode] || attempt == c.maxRetries {
 			respBody, _ := io.ReadAll(resp.Body)
-			return NewAPIError(resp.StatusCode, string(respBody))
+			return NewAPIError(resp.StatusCode, string(respBody), resp.Header.Get("Retry-After"))
 		}
 
 		resp.Body.Close()
-		time.Sleep(c.retryDelay(attempt))
+		time.Sleep(c.retryDelay(resp, attempt))
 	}
 
 	return fmt.Errorf("unreachable")
@@ -148,7 +149,14 @@ func (c *HTTPClient) buildURL(path string, pathParams map[string]string) string 
 	return u
 }
 
-func (c *HTTPClient) retryDelay(attempt int) time.Duration {
+func (c *HTTPClient) retryDelay(resp *http.Response, attempt int) time.Duration {
+	if resp != nil {
+		if ra := resp.Header.Get("Retry-After"); ra != "" {
+			if seconds, err := strconv.Atoi(ra); err == nil {
+				return time.Duration(seconds) * time.Second
+			}
+		}
+	}
 	delay := float64(500) * math.Pow(2, float64(attempt))
 	jitter := rand.Float64() * 100
 	ms := math.Min(delay+jitter, 30000)

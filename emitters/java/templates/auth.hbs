@@ -5,12 +5,19 @@ import java.net.URLEncoder;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * OAuth 2.0 client supporting client_credentials and authorization_code + PKCE.
+ *
+ * <p>Two-legged (client_credentials) authentication is handled automatically when
+ * calling {@link #getToken()}. For three-legged flows, use
+ * {@link #getAuthorizationUrl(String, String, String)} and
+ * {@link #exchangeCode(String, String, String)}.</p>
  *
  * <p>Auto-generated — do not edit manually.</p>
  */
@@ -37,7 +44,7 @@ public class OAuth2Client {
         this.mapper = new ObjectMapper();
     }
 
-    /** Set an externally obtained access token. */
+    /** Set an externally obtained access token (e.g., from 3LO flow). */
     public synchronized void setAccessToken(String token) {
         this.accessToken = token;
         this.tokenExpiry = System.currentTimeMillis() + 3600_000;
@@ -50,6 +57,102 @@ public class OAuth2Client {
         }
         return fetchToken();
     }
+
+    // ── Three-legged OAuth (authorization_code + PKCE) ──────────────────────
+
+    /**
+     * Result of generating a PKCE authorization URL.
+     */
+    public static class AuthorizationResult {
+        private final String url;
+        private final String codeVerifier;
+
+        public AuthorizationResult(String url, String codeVerifier) {
+            this.url = url;
+            this.codeVerifier = codeVerifier;
+        }
+
+        /** The authorization URL to redirect the user to. */
+        public String getUrl() { return url; }
+
+        /** The PKCE code verifier — store this and pass it to {@link #exchangeCode}. */
+        public String getCodeVerifier() { return codeVerifier; }
+    }
+
+    /**
+     * Generate a PKCE authorization URL for the three-legged OAuth flow.
+     *
+     * @param redirectUri The URI to redirect the user back to after authorization.
+     * @param scope       Optional OAuth scope (may be null).
+     * @param state       Optional state parameter for CSRF protection (may be null).
+     * @return An {@link AuthorizationResult} containing the URL and code verifier.
+     */
+    public AuthorizationResult getAuthorizationUrl(String redirectUri, String scope, String state) {
+        String codeVerifier = generateCodeVerifier();
+        String codeChallenge = generateCodeChallenge(codeVerifier);
+
+        StringBuilder url = new StringBuilder();
+        url.append(baseUrl).append("{{auth.threeLegged.authorizeEndpoint}}");
+        url.append("?response_type=code");
+        url.append("&client_id=").append(urlEncode(clientId));
+        url.append("&redirect_uri=").append(urlEncode(redirectUri));
+        url.append("&code_challenge=").append(urlEncode(codeChallenge));
+        url.append("&code_challenge_method=S256");
+
+        if (scope != null && !scope.isEmpty()) {
+            url.append("&scope=").append(urlEncode(scope));
+        }
+        if (state != null && !state.isEmpty()) {
+            url.append("&state=").append(urlEncode(state));
+        }
+
+        return new AuthorizationResult(url.toString(), codeVerifier);
+    }
+
+    /**
+     * Exchange an authorization code for tokens (three-legged flow).
+     *
+     * @param code         The authorization code received from the callback.
+     * @param redirectUri  The same redirect URI used in the authorization request.
+     * @param codeVerifier The PKCE code verifier from {@link #getAuthorizationUrl}.
+     * @throws RuntimeException If the token exchange fails.
+     */
+    public synchronized void exchangeCode(String code, String redirectUri, String codeVerifier) {
+        try {
+            String body = "grant_type=authorization_code"
+                + "&code=" + urlEncode(code)
+                + "&redirect_uri=" + urlEncode(redirectUri)
+                + "&code_verifier=" + urlEncode(codeVerifier);
+
+            String credentials = Base64.getEncoder()
+                .encodeToString((clientId + ":" + clientSecret).getBytes(StandardCharsets.UTF_8));
+
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + tokenEndpoint))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .header("Authorization", "Basic " + credentials)
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() != 200) {
+                throw new RuntimeException("Token exchange failed: " + response.statusCode());
+            }
+
+            var tokenResponse = mapper.readTree(response.body());
+            this.accessToken = tokenResponse.get("access_token").asText();
+            int expiresIn = tokenResponse.get("expires_in").asInt();
+            this.tokenExpiry = System.currentTimeMillis() + (expiresIn * 1000L);
+
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to exchange authorization code", e);
+        }
+    }
+
+    // ── Private helpers ─────────────────────────────────────────────────────
 
     private String fetchToken() {
         try {
@@ -81,5 +184,26 @@ public class OAuth2Client {
         } catch (Exception e) {
             throw new RuntimeException("Failed to obtain OAuth2 token", e);
         }
+    }
+
+    private static String generateCodeVerifier() {
+        SecureRandom random = new SecureRandom();
+        byte[] bytes = new byte[32];
+        random.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private static String generateCodeChallenge(String verifier) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(verifier.getBytes(StandardCharsets.US_ASCII));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
+        } catch (Exception e) {
+            throw new RuntimeException("SHA-256 not available", e);
+        }
+    }
+
+    private static String urlEncode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 }

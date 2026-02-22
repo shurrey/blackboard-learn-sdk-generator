@@ -11,7 +11,7 @@ module {{moduleName}}
       @body = body
     end
 
-    def self.from_response(status, body)
+    def self.from_response(status, body, retry_after = nil)
       message = body.is_a?(Hash) ? body["message"] || body.to_s : body.to_s
 
       case status
@@ -20,7 +20,7 @@ module {{moduleName}}
       when 403 then PermissionError.new(message, status, body)
       when 404 then NotFoundError.new(message, status, body)
       when 409 then ConflictError.new(message, status, body)
-      when 429 then RateLimitError.new(message, status, body)
+      when 429 then RateLimitError.new(message, status, body, retry_after)
       else new(message, status, body)
       end
     end
@@ -31,5 +31,13 @@ module {{moduleName}}
   class PermissionError < APIError; end
   class NotFoundError < APIError; end
   class ConflictError < APIError; end
-  class RateLimitError < APIError; end
+
+  class RateLimitError < APIError
+    attr_reader :retry_after
+
+    def initialize(message, status, body = nil, retry_after = nil)
+      super(message, status, body)
+      @retry_after = retry_after
+    end
+  end
 end

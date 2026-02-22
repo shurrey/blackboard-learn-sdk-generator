@@ -10,9 +10,10 @@ From spec version {{metadata.specVersion}} on {{metadata.generatedAt}}
 
 import os
 import sys
+import logging
 from fastmcp import FastMCP
 
-from blackboard_learn_mcp.auth.env_auth import get_auth_client
+from blackboard_learn_mcp.auth.env_auth import get_auth_client, BlackboardAuthClient
 from blackboard_learn_mcp.tools.courses import register_course_tools
 from blackboard_learn_mcp.tools.users import register_user_tools
 from blackboard_learn_mcp.tools.content import register_content_tools
@@ -20,6 +21,8 @@ from blackboard_learn_mcp.tools.grades import register_grade_tools
 from blackboard_learn_mcp.tools.enrollments import register_enrollment_tools
 from blackboard_learn_mcp.tools.announcements import register_announcement_tools
 from blackboard_learn_mcp.tools.dynamic import register_dynamic_tools
+
+logger = logging.getLogger(__name__)
 
 # Create the MCP server
 mcp = FastMCP(
@@ -35,19 +38,158 @@ mcp = FastMCP(
     ),
 )
 
-# Initialize the authenticated HTTP client
+# ── Authentication ───────────────────────────────────────────────────────────
+
+# Default: client_credentials auth via environment variables
 _client = None
+
+# Three-legged OAuth (when BLACKBOARD_REDIRECT_URI is set)
+_oauth_manager = None
+_oauth_client = None
+
+
+def _is_oauth_mode() -> bool:
+    """Check if three-legged OAuth mode is enabled."""
+    return bool(os.environ.get("BLACKBOARD_REDIRECT_URI"))
 
 
 def get_client():
-    """Get or create the authenticated Blackboard Learn API client."""
-    global _client
+    """Get or create the authenticated Blackboard Learn API client.
+
+    In OAuth mode, returns the OAuth-authenticated client after the user
+    completes the authorization flow. Falls back to client_credentials.
+    """
+    global _client, _oauth_client
+
+    # If we have an OAuth-authenticated client, prefer it
+    if _oauth_client is not None:
+        return _oauth_client
+
+    # Fall back to client_credentials
     if _client is None:
         _client = get_auth_client()
     return _client
 
 
-# Register all tool modules
+# ── OAuth tools (registered only in streamable-http + OAuth mode) ────────────
+
+def _register_oauth_tools():
+    """Register MCP tools for the three-legged OAuth flow.
+
+    These tools allow an AI agent to initiate and complete the OAuth
+    authorization flow on behalf of a user.
+    """
+    from blackboard_learn_mcp.auth.oauth_auth import get_oauth_manager
+
+    global _oauth_manager
+    _oauth_manager = get_oauth_manager()
+
+    @mcp.tool()
+    def learn_auth_get_login_url(scope: str = "*") -> dict:
+        """Get a Blackboard Learn authorization URL for user login.
+
+        Returns a URL that the user must visit in their browser to authorize
+        this application. After authorization, Blackboard redirects to the
+        configured redirect URI with an authorization code.
+
+        Args:
+            scope: OAuth scope to request. Defaults to all permissions.
+
+        Returns:
+            Dictionary with 'authorization_url' and 'state'. The state
+            value must be passed to learn_auth_exchange_code.
+        """
+        url, state = _oauth_manager.get_authorization_url(scope)
+        return {
+            "authorization_url": url,
+            "state": state,
+            "instructions": (
+                "Direct the user to visit the authorization_url in their browser. "
+                "After they authorize, they will be redirected to the callback URL "
+                "with a 'code' and 'state' parameter. Pass those to "
+                "learn_auth_exchange_code to complete authentication."
+            ),
+        }
+
+    @mcp.tool()
+    def learn_auth_exchange_code(code: str, state: str) -> dict:
+        """Exchange an authorization code for Blackboard Learn access tokens.
+
+        Call this after the user has authorized and been redirected back with
+        an authorization code.
+
+        Args:
+            code: The authorization code from the callback URL.
+            state: The state value from learn_auth_get_login_url.
+
+        Returns:
+            Dictionary confirming the authentication was successful.
+        """
+        global _oauth_client
+
+        session = _oauth_manager.exchange_code(code, state)
+
+        # Create an authenticated HTTP client using the user's token
+        base_url = os.environ.get("BLACKBOARD_BASE_URL", "")
+        _oauth_client = BlackboardAuthClient(
+            base_url=base_url,
+            client_id=os.environ.get("BLACKBOARD_CLIENT_ID", ""),
+            client_secret=os.environ.get("BLACKBOARD_CLIENT_SECRET", ""),
+            token=session.access_token,
+        )
+        # Set token expiry so the client knows when to refresh
+        _oauth_client._token_expires_at = session.expires_at
+
+        user_info = f" (user: {session.user_id})" if session.user_id else ""
+        logger.info("OAuth authentication successful%s", user_info)
+
+        return {
+            "status": "authenticated",
+            "user_id": session.user_id,
+            "message": (
+                f"Successfully authenticated with Blackboard Learn{user_info}. "
+                "All subsequent tool calls will use this user's permissions."
+            ),
+        }
+
+    @mcp.tool()
+    def learn_auth_status() -> dict:
+        """Check the current Blackboard Learn authentication status.
+
+        Returns:
+            Dictionary with current auth mode and status information.
+        """
+        if _oauth_client is not None:
+            return {
+                "mode": "oauth_user",
+                "authenticated": True,
+                "message": "Authenticated via three-legged OAuth (user context).",
+            }
+        elif _client is not None:
+            return {
+                "mode": "client_credentials",
+                "authenticated": True,
+                "message": "Authenticated via client credentials (application context).",
+            }
+        else:
+            return {
+                "mode": "not_authenticated",
+                "authenticated": False,
+                "oauth_available": _is_oauth_mode(),
+                "message": (
+                    "Not yet authenticated. "
+                    + ("Use learn_auth_get_login_url to start the OAuth flow."
+                       if _is_oauth_mode()
+                       else "Authentication will occur automatically on the first API call.")
+                ),
+            }
+
+    logger.info("OAuth tools registered (learn_auth_get_login_url, learn_auth_exchange_code, learn_auth_status)")
+
+
+# ── Tool registration ────────────────────────────────────────────────────────
+
+# Register all standard tool modules
 register_course_tools(mcp, get_client)
 register_user_tools(mcp, get_client)
 register_content_tools(mcp, get_client)
@@ -55,6 +197,10 @@ register_grade_tools(mcp, get_client)
 register_enrollment_tools(mcp, get_client)
 register_announcement_tools(mcp, get_client)
 register_dynamic_tools(mcp, get_client)
+
+# Register OAuth tools if in OAuth mode
+if _is_oauth_mode():
+    _register_oauth_tools()
 
 
 def main():
@@ -64,10 +210,15 @@ def main():
       - stdio (default): For direct integration with MCP clients like Claude Desktop
       - streamable-http: For remote/networked access over HTTP
 
-    Set MCP_TRANSPORT=streamable-http to use HTTP transport.
-    Set MCP_HTTP_PORT to configure the HTTP port (default: 8000).
+    Environment variables:
+      MCP_TRANSPORT: Transport mode ("stdio" or "streamable-http", default: "stdio")
+      MCP_HTTP_PORT: HTTP port for streamable-http (default: 8000)
+      BLACKBOARD_REDIRECT_URI: Set to enable three-legged OAuth tools
     """
     transport = os.environ.get("MCP_TRANSPORT", "stdio")
+
+    if _is_oauth_mode():
+        logger.info("Three-legged OAuth mode enabled (BLACKBOARD_REDIRECT_URI is set)")
 
     if transport == "streamable-http":
         port = int(os.environ.get("MCP_HTTP_PORT", "8000"))

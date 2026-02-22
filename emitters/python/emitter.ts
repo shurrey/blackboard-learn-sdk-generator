@@ -73,6 +73,16 @@ export class PythonEmitter extends BaseEmitter {
     // Types __init__.py
     files.set('types-init', `${pkg}/types/__init__.py`);
 
+    // Documentation
+    files.set('readme', 'README.md');
+    files.set('authentication', 'docs/authentication.md');
+    for (const resource of allResources) {
+      files.set(`doc:${resource.name}`, `docs/${resource.name}.md`);
+    }
+
+    // Integration tests
+    files.set('integration:all', 'tests/integration/test_integration.py');
+
     return files;
   }
 
@@ -148,6 +158,33 @@ export class PythonEmitter extends BaseEmitter {
         ...base,
         models: this.ir.models,
         enums: this.ir.enums,
+      };
+    }
+
+    // Integration test templates
+    if (templateName.startsWith('integration:')) {
+      return {
+        ...base,
+        resources: this.flattenResources().filter(r => r.methods.length > 0),
+      };
+    }
+
+    // Doc templates
+    if (templateName === 'readme') {
+      return {
+        ...base,
+        topLevelResources: this.ir.resources,
+      };
+    }
+
+    if (templateName.startsWith('doc:')) {
+      const resourceName = templateName.slice('doc:'.length);
+      const resource = this.findResource(resourceName);
+      if (!resource) throw new Error(`Resource not found: ${resourceName}`);
+      return {
+        ...base,
+        resource,
+        idFormats: this.ir.idFormats,
       };
     }
 

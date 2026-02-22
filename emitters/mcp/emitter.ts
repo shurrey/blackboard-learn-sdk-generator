@@ -154,8 +154,9 @@ export class MCPEmitter extends BaseEmitter {
     // Build config
     files.set('pyproject-toml', 'pyproject.toml');
 
-    // README
+    // Documentation
     files.set('readme', 'README.md');
+    files.set('authentication', 'docs/authentication.md');
 
     return files;
   }

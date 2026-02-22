@@ -1,13 +1,37 @@
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace {{namespace}};
 
-/// <summary>OAuth 2.0 client for Blackboard Learn.</summary>
+/// <summary>Result of generating a PKCE authorization URL.</summary>
+public class AuthorizationResult
+{
+    /// <summary>The authorization URL to redirect the user to.</summary>
+    public string Url { get; }
+
+    /// <summary>The PKCE code verifier — store this and pass it to <see cref="OAuth2Client.ExchangeCodeAsync"/>.</summary>
+    public string CodeVerifier { get; }
+
+    public AuthorizationResult(string url, string codeVerifier)
+    {
+        Url = url;
+        CodeVerifier = codeVerifier;
+    }
+}
+
+/// <summary>
+/// OAuth 2.0 client supporting client_credentials and authorization_code + PKCE.
+///
+/// Two-legged (client_credentials) authentication is handled automatically when
+/// calling <see cref="GetTokenAsync"/>. For three-legged flows, use
+/// <see cref="GetAuthorizationUrl"/> and <see cref="ExchangeCodeAsync"/>.
+/// </summary>
 public class OAuth2Client
 {
     private readonly string _baseUrl;
@@ -29,12 +53,14 @@ public class OAuth2Client
         _httpClient = new HttpClient();
     }
 
+    /// <summary>Set an externally obtained access token (e.g., from 3LO flow).</summary>
     public void SetAccessToken(string token)
     {
         _accessToken = token;
         _tokenExpiry = DateTimeOffset.UtcNow.AddHours(1);
     }
 
+    /// <summary>Get a valid access token, refreshing via client_credentials if needed.</summary>
     public async Task<string> GetTokenAsync()
     {
         if (_accessToken != null && DateTimeOffset.UtcNow < _tokenExpiry.AddMinutes(-1))
@@ -53,6 +79,77 @@ public class OAuth2Client
             _lock.Release();
         }
     }
+
+    // ── Three-legged OAuth (authorization_code + PKCE) ──────────────────────
+
+    /// <summary>
+    /// Generate a PKCE authorization URL for the three-legged OAuth flow.
+    /// </summary>
+    /// <param name="redirectUri">The URI to redirect the user back to after authorization.</param>
+    /// <param name="scope">Optional OAuth scope.</param>
+    /// <param name="state">Optional state parameter for CSRF protection.</param>
+    /// <returns>An <see cref="AuthorizationResult"/> containing the URL and code verifier.</returns>
+    public AuthorizationResult GetAuthorizationUrl(string redirectUri, string? scope = null, string? state = null)
+    {
+        var codeVerifier = GenerateCodeVerifier();
+        var codeChallenge = GenerateCodeChallenge(codeVerifier);
+
+        var url = new StringBuilder();
+        url.Append($"{_baseUrl}{{auth.threeLegged.authorizeEndpoint}}");
+        url.Append($"?response_type=code");
+        url.Append($"&client_id={Uri.EscapeDataString(_clientId)}");
+        url.Append($"&redirect_uri={Uri.EscapeDataString(redirectUri)}");
+        url.Append($"&code_challenge={Uri.EscapeDataString(codeChallenge)}");
+        url.Append($"&code_challenge_method=S256");
+
+        if (!string.IsNullOrEmpty(scope))
+            url.Append($"&scope={Uri.EscapeDataString(scope)}");
+        if (!string.IsNullOrEmpty(state))
+            url.Append($"&state={Uri.EscapeDataString(state)}");
+
+        return new AuthorizationResult(url.ToString(), codeVerifier);
+    }
+
+    /// <summary>
+    /// Exchange an authorization code for tokens (three-legged flow).
+    /// </summary>
+    /// <param name="code">The authorization code received from the callback.</param>
+    /// <param name="redirectUri">The same redirect URI used in the authorization request.</param>
+    /// <param name="codeVerifier">The PKCE code verifier from <see cref="GetAuthorizationUrl"/>.</param>
+    public async Task ExchangeCodeAsync(string code, string redirectUri, string codeVerifier)
+    {
+        var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_clientId}:{_clientSecret}"));
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}{_tokenEndpoint}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
+        request.Content = new FormUrlEncodedContent(new[]
+        {
+            new KeyValuePair<string, string>("grant_type", "authorization_code"),
+            new KeyValuePair<string, string>("code", code),
+            new KeyValuePair<string, string>("redirect_uri", redirectUri),
+            new KeyValuePair<string, string>("code_verifier", codeVerifier)
+        });
+
+        var response = await _httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException($"Token exchange failed: {response.StatusCode}");
+
+        var json = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(json);
+
+        await _lock.WaitAsync();
+        try
+        {
+            _accessToken = doc.RootElement.GetProperty("access_token").GetString()!;
+            var expiresIn = doc.RootElement.GetProperty("expires_in").GetInt32();
+            _tokenExpiry = DateTimeOffset.UtcNow.AddSeconds(expiresIn);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    // ── Private helpers ─────────────────────────────────────────────────────
 
     private async Task<string> FetchTokenAsync()
     {
@@ -75,5 +172,25 @@ public class OAuth2Client
         _tokenExpiry = DateTimeOffset.UtcNow.AddSeconds(expiresIn);
 
         return _accessToken;
+    }
+
+    private static string GenerateCodeVerifier()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(32);
+        return Base64UrlEncode(bytes);
+    }
+
+    private static string GenerateCodeChallenge(string verifier)
+    {
+        var hash = SHA256.HashData(Encoding.ASCII.GetBytes(verifier));
+        return Base64UrlEncode(hash);
+    }
+
+    private static string Base64UrlEncode(byte[] bytes)
+    {
+        return Convert.ToBase64String(bytes)
+            .Replace('+', '-')
+            .Replace('/', '_')
+            .TrimEnd('=');
     }
 }

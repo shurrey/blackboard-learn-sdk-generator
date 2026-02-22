@@ -16,7 +16,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src/ --ext .ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "version:bump": "tsx bin/bump-version.ts",
+    "changelog": "tsx bin/changelog.ts",
+    "test:integration": "tsx bin/test-integration.ts"
   },
   "dependencies": {
     "commander": "^12.1.0",
@@ -27,6 +30,7 @@
     "change-case": "^5.4.4"
   },
   "devDependencies": {
+    "@stoplight/prism-cli": "^5.8.0",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.14.0",
     "tsx": "^4.15.0",

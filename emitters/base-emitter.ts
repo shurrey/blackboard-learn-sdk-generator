@@ -130,6 +130,8 @@ export abstract class BaseEmitter {
     else if (templateName.startsWith('resource:')) actual = 'resource';
     else if (templateName.startsWith('model:')) actual = 'model';
     else if (templateName.startsWith('enum:')) actual = 'enum';
+    else if (templateName.startsWith('doc:')) actual = 'resource-doc';
+    else if (templateName.startsWith('integration:')) actual = 'integration-test';
     return this.loadTemplate(actual)(context);
   }
 

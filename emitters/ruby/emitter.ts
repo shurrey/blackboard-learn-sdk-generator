@@ -54,6 +54,16 @@ export class RubyEmitter extends BaseEmitter {
       files.set(`model:${model.originalName ?? model.name}`, `lib/${this.gemName}/types/${snakeCase(model.originalName ?? model.name)}.rb`);
     }
 
+    // Documentation
+    files.set('readme', 'README.md');
+    files.set('authentication', 'docs/authentication.md');
+    for (const resource of allResources) {
+      files.set(`doc:${resource.name}`, `docs/${resource.name}.md`);
+    }
+
+    // Integration tests
+    files.set('integration:all', 'spec/integration/integration_spec.rb');
+
     return files;
   }
 
@@ -82,6 +92,32 @@ export class RubyEmitter extends BaseEmitter {
       const name = templateName.slice('model:'.length);
       const model = this.ir.models.find(m => (m.originalName ?? m.name) === name);
       return { ...base, model };
+    }
+
+    // Integration test templates
+    if (templateName.startsWith('integration:')) {
+      return {
+        ...base,
+        resources: this.flattenResources().filter(r => r.methods.length > 0),
+      };
+    }
+
+    // Doc templates
+    if (templateName === 'readme') {
+      return {
+        ...base,
+        topLevelResources: this.ir.resources,
+      };
+    }
+
+    if (templateName.startsWith('doc:')) {
+      const name = templateName.slice('doc:'.length);
+      const resource = this.flattenResources().find(r => r.name === name);
+      return {
+        ...base,
+        resource,
+        idFormats: this.ir.idFormats,
+      };
     }
 
     return {

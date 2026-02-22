@@ -1,0 +1,57 @@
+"""
+Integration tests for the Blackboard Learn Python SDK.
+Runs against a Prism mock server.
+
+Auto-generated -- do not edit manually.
+"""
+
+import os
+import pytest
+from blackboard_learn import Client
+from blackboard_learn._errors import APIError, NotFoundError
+
+MOCK_SERVER_URL = os.environ.get("MOCK_SERVER_URL", "http://127.0.0.1:4010")
+
+
+@pytest.fixture
+def client():
+    """Create a client pointing at the mock server."""
+    return Client(
+        domain=MOCK_SERVER_URL.replace("http://", "").replace("https://", ""),
+        client_id="test-client-id",
+        client_secret="test-client-secret",
+        base_url=MOCK_SERVER_URL + "/learn/api/public",
+    )
+
+
+{{#each resources}}
+class Test{{PascalCase name}}:
+{{#each methods}}
+{{#if (eq kind "list")}}
+    def test_{{snakeCase name}}(self, client):
+        """{{name}} should return results."""
+        result = client.{{snakeCase ../name}}.{{snakeCase name}}({{#each pathParams}}"_1_1"{{#unless @last}}, {{/unless}}{{/each}})
+        assert result is not None
+
+{{else if (eq kind "get")}}
+    def test_{{snakeCase name}}(self, client):
+        """{{name}} should return a resource."""
+        result = client.{{snakeCase ../name}}.{{snakeCase name}}({{#each pathParams}}"_1_1"{{#unless @last}}, {{/unless}}{{/each}})
+        assert result is not None
+
+{{/if}}
+{{/each}}
+
+{{/each}}
+
+class TestErrorHandling:
+    def test_not_found(self, client):
+        """Should raise an error for non-existent resource."""
+        with pytest.raises(APIError):
+{{#each resources}}
+{{#each methods}}
+{{#if (eq kind "get")}}
+            client.{{snakeCase ../name}}.{{snakeCase name}}({{#each pathParams}}"non-existent-id"{{#unless @last}}, {{/unless}}{{/each}})
+{{/if}}
+{{/each}}
+{{/each}}

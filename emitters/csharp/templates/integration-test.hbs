@@ -1,0 +1,69 @@
+using System;
+using System.Threading.Tasks;
+using Xunit;
+using {{namespace}};
+
+namespace {{namespace}}.Tests.Integration;
+
+/// <summary>
+/// Integration tests for the Blackboard Learn C# SDK.
+/// Runs against a Prism mock server.
+///
+/// Auto-generated — do not edit manually.
+/// </summary>
+public class IntegrationTests : IAsyncLifetime
+{
+    private Client _client = null!;
+
+    private static readonly string MockServerUrl =
+        Environment.GetEnvironmentVariable("MOCK_SERVER_URL") ?? "http://127.0.0.1:4010";
+
+    public Task InitializeAsync()
+    {
+        _client = new Client(
+            domain: MockServerUrl.Replace("http://", "").Replace("https://", ""),
+            clientId: "test-client-id",
+            clientSecret: "test-client-secret",
+            baseUrl: MockServerUrl + "/learn/api/public"
+        );
+        return Task.CompletedTask;
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
+{{#each resources}}
+{{#each methods}}
+{{#if (eq kind "list")}}
+    [Fact]
+    public async Task {{PascalCase ../name}}_{{PascalCase name}}_ReturnsResults()
+    {
+        var result = await _client.{{PascalCase ../name}}.{{PascalCase name}}Async({{#each pathParams}}"_1_1"{{#unless @last}}, {{/unless}}{{/each}});
+        Assert.NotNull(result);
+    }
+
+{{else if (eq kind "get")}}
+    [Fact]
+    public async Task {{PascalCase ../name}}_{{PascalCase name}}_ReturnsResource()
+    {
+        var result = await _client.{{PascalCase ../name}}.{{PascalCase name}}Async({{#each pathParams}}"_1_1"{{#unless @last}}, {{/unless}}{{/each}});
+        Assert.NotNull(result);
+    }
+
+{{/if}}
+{{/each}}
+{{/each}}
+    [Fact]
+    public async Task ErrorHandling_ThrowsOnNotFound()
+    {
+        await Assert.ThrowsAsync<APIError>(async () =>
+        {
+{{#each resources}}
+{{#each methods}}
+{{#if (eq kind "get")}}
+            await _client.{{PascalCase ../name}}.{{PascalCase name}}Async({{#each pathParams}}"non-existent-id"{{#unless @last}}, {{/unless}}{{/each}});
+{{/if}}
+{{/each}}
+{{/each}}
+        });
+    }
+}

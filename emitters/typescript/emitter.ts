@@ -53,6 +53,16 @@ export class TypeScriptEmitter extends BaseEmitter {
       files.set(`enum:${enumDef.name}`, `src/types/${enumDef.name}.ts`);
     }
 
+    // Documentation
+    files.set('readme', 'README.md');
+    files.set('authentication', 'docs/authentication.md');
+    for (const resource of allResources) {
+      files.set(`doc:${resource.name}`, `docs/${resource.name}.md`);
+    }
+
+    // Integration tests
+    files.set('integration:all', 'tests/integration/integration.test.ts');
+
     return files;
   }
 
@@ -112,6 +122,34 @@ export class TypeScriptEmitter extends BaseEmitter {
       return {
         ...base,
         enumDef,
+      };
+    }
+
+    // Integration test templates
+    if (templateName.startsWith('integration:')) {
+      return {
+        ...base,
+        resources: this.flattenResources().filter(r => r.methods.length > 0),
+        mockServerUrl: 'http://127.0.0.1:4010',
+      };
+    }
+
+    // Doc templates
+    if (templateName === 'readme') {
+      return {
+        ...base,
+        topLevelResources: this.ir.resources,
+      };
+    }
+
+    if (templateName.startsWith('doc:')) {
+      const resourceName = templateName.slice('doc:'.length);
+      const resource = this.findResource(resourceName);
+      if (!resource) throw new Error(`Resource not found: ${resourceName}`);
+      return {
+        ...base,
+        resource,
+        idFormats: this.ir.idFormats,
       };
     }
 

@@ -110,13 +110,27 @@ public class HttpClient {
                 }
 
                 if (!RETRY_STATUS_CODES.contains(response.statusCode()) || attempt == maxRetries) {
-                    throw APIError.fromResponse(response.statusCode(), response.body());
+                    throw APIError.fromResponse(response.statusCode(), response.body(),
+                        response.headers().firstValue("Retry-After").orElse(null));
                 }
 
-                long delay = Math.min(
-                    INITIAL_RETRY_DELAY * (long) Math.pow(2, attempt) + ThreadLocalRandom.current().nextLong(100),
-                    MAX_RETRY_DELAY
-                );
+                long delay;
+                String retryAfterHeader = response.headers().firstValue("Retry-After").orElse(null);
+                if (retryAfterHeader != null) {
+                    try {
+                        delay = Long.parseLong(retryAfterHeader) * 1000;
+                    } catch (NumberFormatException e) {
+                        delay = Math.min(
+                            INITIAL_RETRY_DELAY * (long) Math.pow(2, attempt) + ThreadLocalRandom.current().nextLong(100),
+                            MAX_RETRY_DELAY
+                        );
+                    }
+                } else {
+                    delay = Math.min(
+                        INITIAL_RETRY_DELAY * (long) Math.pow(2, attempt) + ThreadLocalRandom.current().nextLong(100),
+                        MAX_RETRY_DELAY
+                    );
+                }
                 Thread.sleep(delay);
 
             } catch (APIError e) {

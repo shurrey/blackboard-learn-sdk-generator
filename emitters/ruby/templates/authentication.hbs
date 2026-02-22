@@ -1,0 +1,221 @@
+# Authentication
+
+The {{metadata.name}} Ruby SDK supports multiple OAuth 2.0 authentication flows for the Blackboard Learn REST API.
+
+## Overview
+
+Blackboard Learn uses OAuth 2.0 for all API authentication. The SDK supports three approaches:
+
+| Flow | Use Case | User Interaction |
+|---|---|---|
+| **Client Credentials (2LO)** | Server-to-server integrations, background jobs, admin tools | None — fully automated |
+| **Authorization Code + PKCE (3LO)** | Acting on behalf of a user (student, instructor) | User must authorize in browser |
+| **External Token** | You obtained a token outside the SDK (e.g., from your own auth server) | Depends on your implementation |
+
+---
+
+## Client Credentials (Two-Legged OAuth)
+
+Use this flow when your application acts as itself — not on behalf of a specific user. This is the most common flow for server-side integrations.
+
+### When to Use
+
+- Background jobs (syncing data, bulk operations)
+- Admin tools and dashboards
+- System-to-system integrations
+- Any scenario where no specific user context is needed
+
+### Setup
+
+Register your application in the Blackboard Developer Portal to obtain a `client_id` and `client_secret`.
+
+### Code Example
+
+```ruby
+require "{{langConfig.gemName}}"
+
+client = {{moduleName}}::Client.new(
+  domain: "your-institution.blackboard.com",
+  client_id: "your-client-id",
+  client_secret: "your-client-secret"
+)
+
+# The SDK automatically obtains and caches tokens
+courses = client.courses.list
+```
+
+### How It Works
+
+1. The SDK sends a `POST` request to `{{auth.twoLegged.tokenEndpoint}}` with `grant_type=client_credentials`
+2. Blackboard returns an access token and expiry time
+3. The SDK caches the token and reuses it for subsequent requests
+4. When the token is within 60 seconds of expiry, the SDK automatically refreshes it
+5. Thread-safe: a `Mutex` ensures only one thread refreshes the token at a time
+
+---
+
+## Authorization Code + PKCE (Three-Legged OAuth)
+
+Use this flow when your application acts on behalf of a specific user. The user must authorize your application in their browser.
+
+### When to Use
+
+- Web applications where users log in (Rails, Sinatra)
+- Acting as a specific student or instructor
+- Accessing user-specific data (e.g., "my courses", "my grades")
+- Any scenario requiring user consent
+
+### What is PKCE?
+
+PKCE (Proof Key for Code Exchange) is a security extension that prevents authorization code interception attacks. The SDK handles PKCE automatically — you don't need to implement it yourself.
+
+### Step-by-Step Flow
+
+```
+┌──────────┐     ┌──────────────┐     ┌─────────────┐
+│ Your App │     │ User Browser │     │  Blackboard  │
+└────┬─────┘     └──────┬───────┘     └──────┬───────┘
+     │                  │                     │
+     │  1. Generate     │                     │
+     │  auth URL + PKCE │                     │
+     │──────────────────>                     │
+     │                  │  2. User authorizes  │
+     │                  │────────────────────> │
+     │                  │  3. Redirect with    │
+     │                  │     auth code        │
+     │<─────────────────│                     │
+     │  4. Exchange code │                     │
+     │  for tokens       │                     │
+     │────────────────────────────────────────>│
+     │  5. Access token  │                     │
+     │<────────────────────────────────────────│
+     │                  │                     │
+```
+
+### Code Example
+
+```ruby
+require "{{langConfig.gemName}}"
+
+auth = {{moduleName}}::OAuth2Client.new(
+  base_url: "https://your-institution.blackboard.com",
+  client_id: "your-client-id",
+  client_secret: "your-client-secret",
+  token_endpoint: "{{auth.twoLegged.tokenEndpoint}}"
+)
+
+# Step 1: Generate the authorization URL
+# Store the code_verifier — you'll need it in step 3
+result = auth.get_authorization_url(
+  redirect_uri: "https://your-app.com/callback",
+  scope: "read",                  # Optional
+  state: "random-csrf-token"      # Recommended for CSRF protection
+)
+authorization_url = result.url
+code_verifier = result.code_verifier
+
+# Step 2: Redirect the user to authorization_url
+# They will see the Blackboard authorization page
+
+# Step 3: Handle the callback (user was redirected back with a `code` parameter)
+code = get_code_from_callback # Extract from query string
+auth.exchange_code(
+  code: code,
+  redirect_uri: "https://your-app.com/callback",
+  code_verifier: code_verifier
+)
+
+# Step 4: The auth client now holds the user's access token
+token = auth.get_token
+```
+
+### Parameters
+
+| Parameter | Required | Description |
+|---|---|---|
+| `redirect_uri` | Yes | Must match the redirect URI registered in the Developer Portal |
+| `scope` | No | OAuth scope to request (e.g., `"read"`, `"write"`). Omit to skip. |
+| `state` | No | Random string for CSRF protection. Omit to skip. |
+
+### Important Notes
+
+- The `redirect_uri` must exactly match what you registered in the Blackboard Developer Portal
+- The `code_verifier` must be stored between the authorization request and the code exchange (e.g., in a Rails session)
+- Authorization codes are single-use and expire quickly
+- The `state` parameter should be a cryptographically random string to prevent CSRF attacks
+
+---
+
+## External Token
+
+If you obtain an access token through your own mechanism (e.g., a different OAuth flow, a token proxy), you can set it directly:
+
+```ruby
+require "{{langConfig.gemName}}"
+
+auth = {{moduleName}}::OAuth2Client.new(
+  base_url: "https://your-institution.blackboard.com",
+  client_id: "your-client-id",
+  client_secret: "your-client-secret",
+  token_endpoint: "{{auth.twoLegged.tokenEndpoint}}"
+)
+
+# Set a token obtained externally
+auth.set_access_token("your-external-token")
+
+# The auth client will use this token until it expires,
+# then fall back to client_credentials to get a new one
+token = auth.get_token
+```
+
+---
+
+## Token Lifecycle
+
+The SDK manages token lifecycle automatically:
+
+| Behavior | Detail |
+|---|---|
+| **Caching** | Tokens are cached in memory and reused across requests |
+| **Auto-refresh** | When a token is within 60 seconds of expiry, the next request triggers a refresh |
+| **Thread safety** | A `Mutex` serializes token refreshes — safe for multi-threaded use |
+| **Fallback** | If an externally set token expires, the SDK falls back to `client_credentials` |
+
+---
+
+## Error Handling
+
+Authentication failures raise `RuntimeError`:
+
+```ruby
+require "{{langConfig.gemName}}"
+
+begin
+  courses = client.courses.list
+rescue RuntimeError => e
+  if e.message.include?("OAuth2 token request failed")
+    # Invalid client credentials or token endpoint unreachable
+    puts "Authentication failed: #{e.message}"
+  end
+rescue {{moduleName}}::APIError => e
+  case e.status
+  when 401
+    # Token was valid but has been revoked or is insufficient
+    puts "Unauthorized — token may have been revoked"
+  when 403
+    # Token is valid but lacks the required permissions
+    puts "Forbidden — insufficient permissions"
+  end
+end
+```
+
+---
+
+## Security Best Practices
+
+1. **Never expose `client_secret` in client-side code.** The client secret must only be used in server-side applications.
+2. **Use PKCE for all authorization code flows.** The SDK enables PKCE by default.
+3. **Validate the `state` parameter** on callback to prevent CSRF attacks.
+4. **Store tokens securely.** Never log tokens or store them in plain text.
+5. **Use the minimum required scope** when requesting authorization.
+6. **Rotate client secrets** periodically through the Blackboard Developer Portal.

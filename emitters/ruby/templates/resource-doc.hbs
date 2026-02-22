@@ -1,0 +1,193 @@
+# {{PascalCase resource.name}}
+
+{{#if resource.description}}
+{{resource.description}}
+{{/if}}
+
+{{#if resource.apiVersion}}
+> **API Version:** {{resource.apiVersion}}
+{{/if}}
+{{#if resource.deprecated}}
+> **Deprecated:** This resource is deprecated and may be removed in a future API version.
+{{/if}}
+
+{{#if resource.methods.length}}
+## Overview
+
+| Method | HTTP | Path | Description |
+|--------|------|------|-------------|
+{{#each resource.methods}}
+| [`{{snakeCase name}}`](#{{snakeCase name}}) | `{{httpMethod}}` | `{{path}}` | {{singleLine description}} |
+{{/each}}
+
+---
+
+{{#each resource.methods}}
+## `{{snakeCase name}}`
+
+{{#if deprecated}}
+> **Deprecated:** This method is deprecated.
+{{/if}}
+
+{{#if description}}
+{{description}}
+{{/if}}
+
+{{#if (eq kind "list")}}
+> This is a **list** endpoint. It returns a collection of results and supports pagination.
+{{/if}}
+{{#if (eq kind "delete")}}
+> This is a **destructive** operation. The resource will be permanently removed.
+{{/if}}
+{{#if paginated}}
+> This endpoint is **paginated**. Results are returned as a lazy `Enumerator` that automatically fetches subsequent pages.
+{{/if}}
+
+### Import
+
+```ruby
+require '{{../gemName}}'
+```
+
+### Signature
+
+```ruby
+# @param {{#each pathParams}}{{snakeCase name}} [{{rubyType type}}] {{#if description}}{{singleLine description}}{{/if}}
+# {{/each}}{{#if requestBody}}body [Hash] request body
+# {{/if}}@return [{{rubyReturnType this}}]
+def {{snakeCase name}}({{rubyMethodParams this}})
+```
+
+{{#if pathParams.length}}
+### Path Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+{{#each pathParams}}
+| `{{snakeCase name}}` | `{{rubyType type}}` | {{#if required}}Yes{{else}}No{{/if}} | {{#if description}}{{singleLine description}}{{else}}—{{/if}} |
+{{/each}}
+
+{{#if ../idFormats}}
+> **ID Formats:** Blackboard Learn supports multiple ID formats for path parameters: {{#each ../idFormats.formats}}`{{this}}`{{#unless @last}}, {{/unless}}{{/each}}.
+{{/if}}
+{{/if}}
+
+{{#if queryParams.length}}
+### Query Parameters
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+{{#each queryParams}}
+| `{{snakeCase name}}` | `{{rubyType type}}` | {{#if required}}Yes{{else}}No{{/if}} | {{#if defaultValue}}`{{defaultValue}}`{{else}}—{{/if}} | {{#if description}}{{singleLine description}}{{else}}—{{/if}} |
+{{/each}}
+{{#each queryParams}}
+{{#if enumValues}}
+
+**`{{snakeCase name}}`** accepts the following values: {{#each enumValues}}`{{this}}`{{#unless @last}}, {{/unless}}{{/each}}
+{{/if}}
+{{/each}}
+{{/if}}
+
+{{#if requestBody}}
+### Request Body
+
+{{#if requestBody.description}}
+{{requestBody.description}}
+{{/if}}
+
+- **Content-Type:** `{{requestBody.contentType}}`
+- **Required:** {{#if requestBody.required}}Yes{{else}}No{{/if}}
+- **Type:** `Hash` (see `{{rubyType requestBody.type}}` model)
+{{/if}}
+
+### Example
+
+```ruby
+require '{{../gemName}}'
+
+client = {{../moduleName}}::Client.new(
+  domain: "your-institution.blackboard.com",
+  client_id: "your-client-id",
+  client_secret: "your-client-secret"
+)
+
+begin
+{{#if (eq kind "list")}}
+{{#if paginated}}
+  client.{{snakeCase ../resource.name}}.{{snakeCase name}}_all({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}}).each do |item|
+    puts item
+  end
+{{else}}
+  result = client.{{snakeCase ../resource.name}}.{{snakeCase name}}({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}})
+  puts result
+{{/if}}
+{{else if (eq kind "get")}}
+  item = client.{{snakeCase ../resource.name}}.{{snakeCase name}}({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}})
+  puts item
+{{else if (eq kind "create")}}
+{{#if requestBody}}
+  result = client.{{snakeCase ../resource.name}}.{{snakeCase name}}({{#each pathParams}}"example-id", {{/each}}{
+    # Provide request body fields here
+  })
+{{else}}
+  result = client.{{snakeCase ../resource.name}}.{{snakeCase name}}({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}})
+{{/if}}
+  puts result
+{{else if (eq kind "update")}}
+{{#if requestBody}}
+  result = client.{{snakeCase ../resource.name}}.{{snakeCase name}}({{#each pathParams}}"example-id", {{/each}}{
+    # Provide fields to update
+  })
+{{else}}
+  result = client.{{snakeCase ../resource.name}}.{{snakeCase name}}({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}})
+{{/if}}
+  puts result
+{{else if (eq kind "delete")}}
+  client.{{snakeCase ../resource.name}}.{{snakeCase name}}({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}})
+  puts "Deleted successfully"
+{{else}}
+  result = client.{{snakeCase ../resource.name}}.{{snakeCase name}}({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}})
+  puts result
+{{/if}}
+rescue {{../moduleName}}::NotFoundError
+  puts "Resource not found"
+rescue {{../moduleName}}::RateLimitError => e
+  puts "Rate limited — retry after #{e.retry_after}s"
+rescue {{../moduleName}}::APIError => e
+  puts "API error #{e.status}: #{e.message}"
+end
+```
+
+### Response
+
+{{#if (isVoid response.type)}}
+This method returns `nil` (HTTP {{response.statusCode}}).
+{{else}}
+- **HTTP Status:** {{response.statusCode}}
+- **Return Type:** `{{rubyType response.type}}` (returned as a `Hash`)
+{{#if response.description}}
+- {{response.description}}
+{{/if}}
+{{#if paginated}}
+- Results are paginated. Use the `*_all` variant to get a lazy `Enumerator` that automatically fetches subsequent pages.
+{{/if}}
+{{/if}}
+
+### Error Codes
+
+| Status | Exception | Description |
+|--------|-----------|-------------|
+| 400 | `BadRequestError` | The request was malformed or contained invalid parameters |
+| 401 | `AuthenticationError` | Access token is missing, expired, or invalid |
+| 403 | `PermissionError` | Insufficient privileges for the requested operation |
+| 404 | `NotFoundError` | The requested resource does not exist |
+| 409 | `ConflictError` | The request conflicts with current state (e.g., duplicate) |
+| 429 | `RateLimitError` | Too many requests — check `retry_after` for wait time |
+| 500+ | `APIError` | An unexpected server error occurred |
+
+---
+
+{{/each}}
+{{/if}}
+
+*Auto-generated by the Blackboard Learn SDK Generator — do not edit manually.*

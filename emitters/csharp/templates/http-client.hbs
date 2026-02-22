@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace {{namespace}};
 
@@ -100,10 +101,22 @@ public class LearnHttpClient : IDisposable
             if (!RetryStatusCodes.Contains(response.StatusCode) || attempt == _maxRetries)
             {
                 var errorBody = await response.Content.ReadAsStringAsync(ct);
-                throw APIError.FromResponse((int)response.StatusCode, errorBody);
+                string? retryAfterValue = null;
+                if (response.Headers.TryGetValues("Retry-After", out var retryAfterValues))
+                    retryAfterValue = retryAfterValues.FirstOrDefault();
+                throw APIError.FromResponse((int)response.StatusCode, errorBody, retryAfterValue);
             }
 
-            var delay = Math.Min(500 * (int)Math.Pow(2, attempt) + random.Next(100), 30000);
+            int delay;
+            if (response.Headers.TryGetValues("Retry-After", out var raValues)
+                && int.TryParse(raValues.FirstOrDefault(), out var retryAfterSeconds))
+            {
+                delay = retryAfterSeconds * 1000;
+            }
+            else
+            {
+                delay = Math.Min(500 * (int)Math.Pow(2, attempt) + random.Next(100), 30000);
+            }
             await Task.Delay(delay, ct);
         }
 

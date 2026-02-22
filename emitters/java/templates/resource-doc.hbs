@@ -1,0 +1,189 @@
+# {{PascalCase resource.name}}
+
+{{#if resource.description}}
+{{resource.description}}
+{{/if}}
+
+{{#if resource.apiVersion}}
+> **API Version:** {{resource.apiVersion}}
+{{/if}}
+{{#if resource.deprecated}}
+> **Deprecated:** This resource is deprecated and may be removed in a future API version.
+{{/if}}
+
+{{#if resource.methods.length}}
+## Overview
+
+| Method | HTTP | Path | Description |
+|--------|------|------|-------------|
+{{#each resource.methods}}
+| [`{{camelCase name}}`](#{{camelCase name}}) | `{{httpMethod}}` | `{{path}}` | {{singleLine description}} |
+{{/each}}
+
+---
+
+{{#each resource.methods}}
+## `{{camelCase name}}`
+
+{{#if deprecated}}
+> **Deprecated:** This method is deprecated.
+{{/if}}
+
+{{#if description}}
+{{description}}
+{{/if}}
+
+{{#if (eq kind "list")}}
+> This is a **list** endpoint. It returns a collection of results and supports pagination.
+{{/if}}
+{{#if (eq kind "delete")}}
+> This is a **destructive** operation. The resource will be permanently removed.
+{{/if}}
+{{#if paginated}}
+> This endpoint is **paginated**. Results are returned as an `Iterator` that automatically fetches subsequent pages.
+{{/if}}
+
+### Import
+
+```java
+import {{../basePackage}}.Client;
+import {{../basePackage}}.errors.APIError;
+```
+
+### Signature
+
+```java
+public {{javaReturnType this}} {{camelCase name}}({{javaMethodParams this}})
+```
+
+{{#if pathParams.length}}
+### Path Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+{{#each pathParams}}
+| `{{camelCase name}}` | `{{javaType type}}` | {{#if required}}Yes{{else}}No{{/if}} | {{#if description}}{{singleLine description}}{{else}}—{{/if}} |
+{{/each}}
+
+{{#if ../idFormats}}
+> **ID Formats:** Blackboard Learn supports multiple ID formats for path parameters: {{#each ../idFormats.formats}}`{{this}}`{{#unless @last}}, {{/unless}}{{/each}}.
+{{/if}}
+{{/if}}
+
+{{#if queryParams.length}}
+### Query Parameters
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+{{#each queryParams}}
+| `{{name}}` | `{{javaType type}}` | {{#if required}}Yes{{else}}No{{/if}} | {{#if defaultValue}}`{{defaultValue}}`{{else}}—{{/if}} | {{#if description}}{{singleLine description}}{{else}}—{{/if}} |
+{{/each}}
+{{#each queryParams}}
+{{#if enumValues}}
+
+**`{{name}}`** accepts the following values: {{#each enumValues}}`{{this}}`{{#unless @last}}, {{/unless}}{{/each}}
+{{/if}}
+{{/each}}
+{{/if}}
+
+{{#if requestBody}}
+### Request Body
+
+{{#if requestBody.description}}
+{{requestBody.description}}
+{{/if}}
+
+- **Content-Type:** `{{requestBody.contentType}}`
+- **Required:** {{#if requestBody.required}}Yes{{else}}No{{/if}}
+- **Type:** `{{javaType requestBody.type}}`
+{{/if}}
+
+### Example
+
+```java
+import {{../basePackage}}.Client;
+import {{../basePackage}}.errors.APIError;
+
+Client client = Client.builder()
+    .domain("your-institution.blackboard.com")
+    .clientId("your-client-id")
+    .clientSecret("your-client-secret")
+    .build();
+
+try {
+{{#if (eq kind "list")}}
+{{#if paginated}}
+    var items = client.{{camelCase ../resource.name}}().{{camelCase name}}All({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}});
+    while (items.hasNext()) {
+        System.out.println(items.next());
+    }
+{{else}}
+    var result = client.{{camelCase ../resource.name}}().{{camelCase name}}({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}});
+    System.out.println(result);
+{{/if}}
+{{else if (eq kind "get")}}
+    var item = client.{{camelCase ../resource.name}}().{{camelCase name}}({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}});
+    System.out.println(item);
+{{else if (eq kind "create")}}
+{{#if requestBody}}
+    var body = new {{javaType requestBody.type}}();
+    // Set body fields...
+    var result = client.{{camelCase ../resource.name}}().{{camelCase name}}({{#each pathParams}}"example-id", {{/each}}body);
+{{else}}
+    var result = client.{{camelCase ../resource.name}}().{{camelCase name}}({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}});
+{{/if}}
+    System.out.println(result);
+{{else if (eq kind "update")}}
+{{#if requestBody}}
+    var body = new {{javaType requestBody.type}}();
+    // Set fields to update...
+    var result = client.{{camelCase ../resource.name}}().{{camelCase name}}({{#each pathParams}}"example-id", {{/each}}body);
+{{else}}
+    var result = client.{{camelCase ../resource.name}}().{{camelCase name}}({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}});
+{{/if}}
+    System.out.println(result);
+{{else if (eq kind "delete")}}
+    client.{{camelCase ../resource.name}}().{{camelCase name}}({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}});
+    System.out.println("Deleted successfully");
+{{else}}
+    var result = client.{{camelCase ../resource.name}}().{{camelCase name}}({{#each pathParams}}"example-id"{{#unless @last}}, {{/unless}}{{/each}});
+    System.out.println(result);
+{{/if}}
+} catch (APIError e) {
+    System.err.println("API error " + e.getStatus() + ": " + e.getMessage());
+}
+```
+
+### Response
+
+{{#if (isVoid response.type)}}
+This method returns no content (HTTP {{response.statusCode}}).
+{{else}}
+- **HTTP Status:** {{response.statusCode}}
+- **Return Type:** `{{javaType response.type}}`
+{{#if response.description}}
+- {{response.description}}
+{{/if}}
+{{#if paginated}}
+- Results are paginated. Use the `*All()` variant to get an `Iterator` that automatically fetches subsequent pages.
+{{/if}}
+{{/if}}
+
+### Error Codes
+
+| Status | Exception | Description |
+|--------|-----------|-------------|
+| 400 | `BadRequestError` | The request was malformed or contained invalid parameters |
+| 401 | `AuthenticationError` | Access token is missing, expired, or invalid |
+| 403 | `PermissionError` | Insufficient privileges for the requested operation |
+| 404 | `NotFoundError` | The requested resource does not exist |
+| 409 | `ConflictError` | The request conflicts with current state (e.g., duplicate) |
+| 429 | `RateLimitError` | Too many requests — check `getRetryAfter()` for wait time |
+| 500+ | `APIError` | An unexpected server error occurred |
+
+---
+
+{{/each}}
+{{/if}}
+
+*Auto-generated by the Blackboard Learn SDK Generator — do not edit manually.*

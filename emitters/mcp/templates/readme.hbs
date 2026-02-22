@@ -59,15 +59,28 @@ MCP_TRANSPORT=streamable-http MCP_HTTP_PORT=8000 blackboard-learn-mcp
 
 ## Authentication
 
-The server supports two authentication modes:
+The server supports three authentication modes:
 
 ### Client Credentials (Two-Legged OAuth)
 
-For server-to-server integrations. Set `BLACKBOARD_CLIENT_ID` and `BLACKBOARD_CLIENT_SECRET`.
+For server-to-server integrations. Set `BLACKBOARD_CLIENT_ID` and `BLACKBOARD_CLIENT_SECRET`. The server automatically obtains and refreshes tokens.
 
 ### Pre-obtained Token
 
 For testing or external token management. Set `BLACKBOARD_API_TOKEN` instead of client credentials.
+
+### Authorization Code + PKCE (Three-Legged OAuth)
+
+For user-delegated access. Set `BLACKBOARD_REDIRECT_URI` to enable OAuth tools (`learn_auth_get_login_url`, `learn_auth_exchange_code`, `learn_auth_status`). The AI agent can then drive the authorization flow to act on behalf of a specific user.
+
+```bash
+export BLACKBOARD_BASE_URL="https://your-institution.blackboard.com"
+export BLACKBOARD_CLIENT_ID="your-application-key"
+export BLACKBOARD_CLIENT_SECRET="your-application-secret"
+export BLACKBOARD_REDIRECT_URI="https://your-app.com/auth/callback"
+```
+
+For a complete guide covering all authentication methods, token lifecycle, and security best practices, see the **[Authentication Guide](docs/authentication.md)**.
 
 ## Development
 

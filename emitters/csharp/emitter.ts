@@ -57,6 +57,16 @@ export class CSharpEmitter extends BaseEmitter {
       files.set(`enum:${enumDef.name}`, `src/${this.namespace}/Types/${enumDef.name}.cs`);
     }
 
+    // Documentation
+    files.set('readme', 'README.md');
+    files.set('authentication', 'docs/authentication.md');
+    for (const resource of allResources) {
+      files.set(`doc:${resource.name}`, `docs/${resource.name}.md`);
+    }
+
+    // Integration tests
+    files.set('integration:all', `tests/${this.namespace}.Tests/Integration/IntegrationTests.cs`);
+
     return files;
   }
 
@@ -93,6 +103,32 @@ export class CSharpEmitter extends BaseEmitter {
       const name = templateName.slice('enum:'.length);
       const enumDef = this.ir.enums.find(e => e.name === name);
       return { ...base, enumDef };
+    }
+
+    // Integration test templates
+    if (templateName.startsWith('integration:')) {
+      return {
+        ...base,
+        resources: this.flattenResources().filter(r => r.methods.length > 0),
+      };
+    }
+
+    // Doc templates
+    if (templateName === 'readme') {
+      return {
+        ...base,
+        topLevelResources: this.ir.resources,
+      };
+    }
+
+    if (templateName.startsWith('doc:')) {
+      const name = templateName.slice('doc:'.length);
+      const resource = this.flattenResources().find(r => r.name === name);
+      return {
+        ...base,
+        resource,
+        idFormats: this.ir.idFormats,
+      };
     }
 
     return {

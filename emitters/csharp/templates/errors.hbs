@@ -16,7 +16,7 @@ public class APIError : Exception
         ResponseBody = responseBody;
     }
 
-    public static APIError FromResponse(int statusCode, string body)
+    public static APIError FromResponse(int statusCode, string body, string? retryAfter = null)
     {
         string message;
         try
@@ -33,7 +33,7 @@ public class APIError : Exception
             403 => new PermissionError(message, statusCode, body),
             404 => new NotFoundError(message, statusCode, body),
             409 => new ConflictError(message, statusCode, body),
-            429 => new RateLimitError(message, statusCode, body),
+            429 => new RateLimitError(message, statusCode, body, retryAfter),
             _ => new APIError(message, statusCode, body)
         };
     }
@@ -66,5 +66,11 @@ public class ConflictError : APIError
 
 public class RateLimitError : APIError
 {
-    public RateLimitError(string message, int status, string? body = null) : base(message, status, body) { }
+    public string? RetryAfter { get; }
+
+    public RateLimitError(string message, int status, string? body = null, string? retryAfter = null)
+        : base(message, status, body)
+    {
+        RetryAfter = retryAfter;
+    }
 }

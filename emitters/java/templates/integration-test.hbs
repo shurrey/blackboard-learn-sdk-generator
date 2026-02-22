@@ -1,0 +1,67 @@
+package {{basePackage}};
+
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+import static org.junit.jupiter.api.Assertions.*;
+
+import {{basePackage}}.errors.APIError;
+
+/**
+ * Integration tests for the Blackboard Learn Java SDK.
+ * Runs against a Prism mock server.
+ *
+ * <p>Auto-generated — do not edit manually.</p>
+ */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+public class IntegrationTest {
+
+    private Client client;
+
+    private static final String MOCK_SERVER_URL =
+        System.getenv("MOCK_SERVER_URL") != null
+            ? System.getenv("MOCK_SERVER_URL")
+            : "http://127.0.0.1:4010";
+
+    @BeforeAll
+    void setUp() {
+        client = Client.builder()
+            .domain(MOCK_SERVER_URL.replaceAll("^https?://", ""))
+            .clientId("test-client-id")
+            .clientSecret("test-client-secret")
+            .baseUrl(MOCK_SERVER_URL + "/learn/api/public")
+            .build();
+    }
+
+{{#each resources}}
+{{#each methods}}
+{{#if (eq kind "list")}}
+    @Test
+    void test{{PascalCase ../name}}_{{name}}() {
+        var result = client.{{camelCase ../name}}().{{camelCase name}}({{#each pathParams}}"_1_1"{{#unless @last}}, {{/unless}}{{/each}});
+        assertNotNull(result);
+    }
+
+{{else if (eq kind "get")}}
+    @Test
+    void test{{PascalCase ../name}}_{{name}}() {
+        var result = client.{{camelCase ../name}}().{{camelCase name}}({{#each pathParams}}"_1_1"{{#unless @last}}, {{/unless}}{{/each}});
+        assertNotNull(result);
+    }
+
+{{/if}}
+{{/each}}
+{{/each}}
+    @Test
+    void testErrorHandling() {
+        assertThrows(APIError.class, () -> {
+{{#each resources}}
+{{#each methods}}
+{{#if (eq kind "get")}}
+            client.{{camelCase ../name}}().{{camelCase name}}({{#each pathParams}}"non-existent-id"{{#unless @last}}, {{/unless}}{{/each}});
+{{/if}}
+{{/each}}
+{{/each}}
+        });
+    }
+}
