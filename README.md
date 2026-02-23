@@ -196,6 +196,19 @@ npm run version:bump -- major   # 1.0.0 → 2.0.0
 npm run changelog
 ```
 
+### Spec Tools
+
+```bash
+# Vendor the upstream spec locally (saves to spec/vendored/)
+npm run spec:vendor
+
+# Diff vendored spec against upstream for API changes
+npm run spec:diff
+
+# Audit resource coverage (operations mapped vs unmapped)
+npm run audit:resources
+```
+
 ### Testing
 
 ```bash
@@ -204,6 +217,9 @@ npm test
 
 # Run integration tests against a Prism mock server
 npm run test:integration -- typescript
+
+# Run a generated SDK's own test suite
+npm run test:sdk -- typescript
 
 # Type-check the generator source
 npm run typecheck
@@ -289,23 +305,38 @@ Generated SDKs are written to `output/<sdk-name>-<language>/` with a complete pr
 | `tests/integration/` | Integration tests (run against Prism mock server) |
 | `docs/` | Per-resource API documentation |
 | `README.md` | SDK-specific getting started guide |
+| `AGENT.md` | AI coding assistant guide with architecture and usage |
+| `CONTRIBUTING.md` | Contribution guidelines (directs to issues) |
+| `LICENSE` | Apache-2.0 license |
+| `.gitignore` | Language-specific ignore rules |
+| `.github/workflows/ci.yml` | CI pipeline (lint, unit tests, integration tests) |
 
 ## Project Structure
 
 ```
 blackboard-learn-sdk-generator/
+├── .github/workflows/
+│   ├── ci.yml                # Generator CI (lint, test, typecheck)
+│   ├── release.yml           # SDK release automation
+│   └── spec-check.yml        # Upstream spec change detection
 ├── bin/
 │   ├── generate.ts           # Main CLI entry point
 │   ├── bump-version.ts       # Version bumping script
-│   ├── changelog.ts          # Changelog generator
+│   ├── changelog.ts          # Changelog generator (includes API changes)
+│   ├── spec-diff.ts          # CLI for diffing vendored vs upstream spec
+│   ├── spec-vendor.ts        # Vendor upstream spec locally
+│   ├── audit-resources.ts    # Audit resource/operation coverage
+│   ├── test-sdk.ts           # Run a generated SDK's test suite
 │   └── test-integration.ts   # Integration test runner
 ├── spec/
 │   ├── index.ts              # Spec pipeline orchestration
 │   ├── download.ts           # Spec fetcher with caching
 │   ├── convert.ts            # Swagger 2.0 → OpenAPI 3.0
 │   ├── validate.ts           # Spec validation
+│   ├── diff.ts               # Shared spec diff module
 │   ├── transforms/           # Spec transform chain
-│   └── cache/                # Cached spec files
+│   ├── cache/                # Cached spec files
+│   └── vendored/             # Vendored spec snapshots
 ├── ir/
 │   ├── builder.ts            # IR construction from OpenAPI
 │   └── types.ts              # IR type definitions
@@ -320,12 +351,15 @@ blackboard-learn-sdk-generator/
 │   └── mcp/                  # MCP server emitter
 ├── testing/
 │   ├── mock-server.ts        # Prism mock server wrapper
+│   ├── test-templates/       # Templates for generated test suites
 │   └── contracts/            # API contracts for testing
 ├── output/                   # Generated SDKs (git-ignored)
 ├── generator.config.yaml     # Generator configuration
 ├── package.json
 ├── tsconfig.json
-└── vitest.config.ts
+├── vitest.config.ts
+├── LICENSE                   # Apache-2.0
+└── CONTRIBUTING.md           # Contribution guide
 ```
 
 ## License
