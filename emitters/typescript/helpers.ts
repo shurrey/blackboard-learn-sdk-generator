@@ -90,10 +90,55 @@ export function methodParams(pathParams: Parameter[], queryParams: Parameter[], 
 }
 
 /**
+ * Convert a TypeRef to a Zod schema expression.
+ */
+export function typeRefToZod(type: TypeRef): string {
+  switch (type.kind) {
+    case 'primitive':
+      return primitiveToZod(type.type);
+    case 'model':
+      return 'z.object({}).passthrough()';
+    case 'array':
+      return `z.array(${typeRefToZod(type.items)})`;
+    case 'enum':
+      if (type.values && type.values.length > 0) {
+        const vals = type.values.map(v => `'${v}'`).join(', ');
+        return `z.enum([${vals}])`;
+      }
+      return 'z.string()';
+    case 'union':
+      if (type.types.length === 0) return 'z.unknown()';
+      if (type.types.length === 1) return typeRefToZod(type.types[0]);
+      return `z.union([${type.types.map(t => typeRefToZod(t)).join(', ')}])`;
+    case 'map':
+      return `z.record(z.string(), ${typeRefToZod(type.valueType)})`;
+    case 'void':
+      return 'z.void()';
+    default:
+      return 'z.unknown()';
+  }
+}
+
+function primitiveToZod(type: string): string {
+  switch (type) {
+    case 'string':
+      return 'z.string()';
+    case 'integer':
+    case 'number':
+      return 'z.number()';
+    case 'boolean':
+      return 'z.boolean()';
+    default:
+      return 'z.unknown()';
+  }
+}
+
+/**
  * Register all TypeScript helpers with Handlebars.
  */
 export function registerTSHelpers(handlebars: typeof import('handlebars')): void {
   handlebars.registerHelper('tsType', (type: TypeRef) => typeRefToTS(type));
+  handlebars.registerHelper('zodType', (type: TypeRef) => typeRefToZod(type));
   handlebars.registerHelper('jsDoc', (text: string, indent: number) =>
     jsDocComment(text, typeof indent === 'number' ? indent : 0)
   );

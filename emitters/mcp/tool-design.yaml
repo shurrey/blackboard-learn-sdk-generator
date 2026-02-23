@@ -534,3 +534,142 @@ tools:
     response_format: |
       ## API Response ({status_code})
       {formatted JSON response}
+
+  - name: learn_manage_calendar
+    description: >
+      Create, update, or delete calendar items for a course or user.
+      Supports events, due dates, and office hours.
+    category: calendar
+    params:
+      - name: action
+        type: str
+        required: true
+        enum: [create, update, delete]
+        description: Action to perform on the calendar item
+      - name: calendar_id
+        type: str
+        required: false
+        description: Calendar item ID (required for update/delete)
+      - name: course_id
+        type: str
+        required: false
+        description: Course ID to scope the calendar item
+      - name: title
+        type: str
+        required: false
+        description: Title of the calendar item
+      - name: description
+        type: str
+        required: false
+        description: Description or body of the calendar item
+      - name: start
+        type: str
+        required: false
+        description: Start date/time in ISO 8601 format
+      - name: end
+        type: str
+        required: false
+        description: End date/time in ISO 8601 format
+      - name: type
+        type: str
+        required: false
+        enum: [Course, GradebookColumn, Institution, OfficeHours, Personal]
+        description: Type of calendar item
+    rest_mapping:
+      method: POST
+      path: /v1/calendars
+      body_map:
+        title: title
+        description: description
+        start: start
+        end: end
+        type: type
+    response_format: |
+      ## Calendar Item {{action}}d
+      **Title:** {{title}}
+      **Type:** {{type}}
+      **Start:** {{start}}
+      **End:** {{end}}
+
+  - name: learn_bulk_grades
+    description: >
+      Submit grades for multiple students in a single operation.
+      Provide a list of student-grade pairs for a specific gradebook column.
+    category: grades
+    params:
+      - name: course_id
+        type: str
+        required: true
+        description: Course ID containing the gradebook column
+      - name: column_id
+        type: str
+        required: true
+        description: Gradebook column ID to submit grades for
+      - name: grades
+        type: list
+        required: true
+        description: "List of grade objects: [{student_id: str, score: float, text: str, notes: str}]"
+    rest_mapping:
+      method: PATCH
+      path: "/v2/courses/{course_id}/gradebook/columns/{column_id}/users"
+      path_map:
+        course_id: courseId
+        column_id: columnId
+    response_format: |
+      ## Bulk Grade Submission
+      **Course:** {{course_id}}
+      **Column:** {{column_id}}
+      **Grades Submitted:** {{grades_count}}
+
+  - name: learn_get_system_info
+    description: >
+      Get Blackboard Learn server version and system information.
+      Useful for checking compatibility and available features.
+    category: system
+    params: []
+    rest_mapping:
+      method: GET
+      path: /v1/system/version
+    response_format: |
+      ## System Information
+      **Version:** {{learn.major}}.{{learn.minor}}.{{learn.patch}}
+      **Build:** {{learn.build}}
+
+  - name: learn_search_content
+    description: >
+      Search for content items within a course by title, type, or other criteria.
+      Returns matching content items with their hierarchy information.
+    category: content
+    params:
+      - name: course_id
+        type: str
+        required: true
+        description: Course ID to search within
+      - name: query
+        type: str
+        required: false
+        description: Search text to match against content titles
+      - name: content_type
+        type: str
+        required: false
+        enum: [Document, File, Folder, Link, Assignment, Test]
+        description: Filter by content type
+      - name: limit
+        type: int
+        required: false
+        default: 50
+        description: Maximum number of results to return
+    rest_mapping:
+      method: GET
+      path: "/v1/courses/{course_id}/contents"
+      path_map:
+        course_id: courseId
+      query_map:
+        limit: limit
+    response_format: |
+      ## Content Search Results
+      **Course:** {{course_id}}
+      **Results Found:** {{count}}
+      {{#each results}}
+      - **{{title}}** ({{contentHandler.id}}) — ID: {{id}}
+      {{/each}}

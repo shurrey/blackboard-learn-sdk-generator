@@ -67,9 +67,17 @@ export function javaDoc(text: string | undefined, indent: number = 0): string {
   ].join('\n');
 }
 
+/**
+ * Check if a TypeRef resolves to a Java String type.
+ */
+export function isStringType(type: TypeRef): boolean {
+  return type.kind === 'primitive' && type.type === 'string' && type.format !== 'binary';
+}
+
 export function registerJavaHelpers(handlebars: typeof import('handlebars')): void {
   handlebars.registerHelper('javaType', (type: TypeRef) => typeRefToJava(type));
   handlebars.registerHelper('javaBoxedType', (type: TypeRef) => typeRefToBoxed(type));
+  handlebars.registerHelper('isStringType', (type: TypeRef) => isStringType(type));
   handlebars.registerHelper('javaDoc', (text: string, indent: number) =>
     javaDoc(text, typeof indent === 'number' ? indent : 0)
   );

@@ -1,0 +1,136 @@
+# AGENT.md - Coding Assistant Guide
+
+> This file provides context for AI coding assistants working with the {{metadata.name}} TypeScript SDK.
+
+## Overview
+
+This is the official TypeScript/JavaScript SDK for the Blackboard Learn REST API. It provides typed methods for all API endpoints with built-in OAuth 2.0 authentication, pagination, retry logic, and error handling.
+
+**Version:** {{metadata.version}}
+**Runtime:** Node.js 22+
+**Package:** `{{langConfig.packageName}}`
+
+## Installation
+
+```bash
+npm install {{langConfig.packageName}}
+```
+
+## Quick Start
+
+```typescript
+import { BlackboardLearnClient } from '{{langConfig.packageName}}';
+
+const client = new BlackboardLearnClient({
+  domain: 'your-institution.blackboard.com',
+  clientId: process.env.BB_CLIENT_ID!,
+  clientSecret: process.env.BB_CLIENT_SECRET!,
+});
+
+// List courses
+const courses = await client.courses.list();
+
+// Get a specific course
+const course = await client.courses.get({ courseId: '_123_1' });
+```
+
+## Authentication
+
+The SDK supports two OAuth 2.0 flows:
+
+1. **Two-legged (Client Credentials)** - for server-to-server integration
+2. **Three-legged (Authorization Code + PKCE)** - for user-context operations
+
+Token management is automatic. See [docs/authentication.md](docs/authentication.md) for details.
+
+## Architecture
+
+### Client Structure
+
+The client exposes resources as nested properties:
+
+```typescript
+client.courses              // CoursesResource
+client.courses.contents     // ContentsResource
+client.courses.users        // UsersResource
+client.users                // UsersResource (top-level)
+```
+
+### Error Handling
+
+```typescript
+import { APIError, NotFoundError, RateLimitError } from '{{langConfig.packageName}}';
+
+try {
+  await client.courses.get({ courseId: 'invalid' });
+} catch (error) {
+  if (error instanceof NotFoundError) {
+    // Handle 404
+  } else if (error instanceof RateLimitError) {
+    // Retry-After header is respected automatically
+  } else if (error instanceof APIError) {
+    console.error(error.status, error.message);
+  }
+}
+```
+
+### Pagination
+
+List methods return paginated results. Use async iteration:
+
+```typescript
+for await (const course of client.courses.list()) {
+  console.log(course.name);
+}
+```
+
+### ID Formats
+
+Blackboard supports multiple ID formats:
+- Primary ID: `_123_1`
+- External ID: `externalId:COURSE-101`
+- Username: `userName:jdoe`
+- UUID: `uuid:abc-def-123`
+
+## Available Resources
+
+{{#each topLevelResources}}
+- **{{camelCase name}}** - `client.{{camelCase name}}`{{#each methods}} | `{{name}}`{{/each}}
+{{#each subresources}}
+  - **{{camelCase name}}** - `client.{{camelCase ../name}}.{{camelCase name}}`{{#each methods}} | `{{name}}`{{/each}}
+{{/each}}
+{{/each}}
+
+## Project Structure
+
+```
+src/
+  client.ts          # Main client class
+  http-client.ts     # HTTP layer with retry logic
+  auth.ts            # OAuth 2.0 implementation
+  pagination.ts      # Async pagination iterator
+  errors.ts          # Error class hierarchy
+  resources/         # One file per API resource
+  types/             # TypeScript interfaces and enums
+tests/               # Unit tests (vitest)
+  integration/       # Integration tests
+docs/                # API documentation per resource
+```
+
+## Key Patterns
+
+- All methods are async and return Promises
+- Request bodies use typed interfaces
+- Path parameters are passed as the first argument object
+- Query parameters (filters, pagination) are passed as optional second argument
+- Binary uploads/downloads use `Buffer` or `ReadableStream`
+
+## Documentation
+
+- [Authentication Guide](docs/authentication.md)
+{{#each topLevelResources}}
+- [{{PascalCase name}}](docs/{{name}}.md)
+{{#each subresources}}
+- [{{PascalCase name}}](docs/{{name}}.md)
+{{/each}}
+{{/each}}

@@ -27,6 +27,26 @@ func New{{PascalCase resource.name}}Resource(client *HTTPClient) *{{PascalCase r
 {{#if description}}
 // {{PascalCase name}} {{singleLine description}}
 {{/if}}
+{{#isUpload this}}
+func (r *{{PascalCase ../resource.name}}Resource) {{PascalCase name}}(ctx context.Context, {{#each pathParams}}{{camelCase name}} string, {{/each}}fieldName string, filename string, fileData []byte) error {
+	pathParams := map[string]string{
+		{{#each pathParams}}
+		"{{name}}": {{camelCase name}},
+		{{/each}}
+	}
+	return r.client.UploadFile(ctx, "{{{path}}}", pathParams, fieldName, filename, fileData, nil)
+}
+{{else}}
+{{#isDownload this}}
+func (r *{{PascalCase ../resource.name}}Resource) {{PascalCase name}}(ctx context.Context{{#each pathParams}}, {{camelCase name}} string{{/each}}) (*FileDownload, error) {
+	pathParams := map[string]string{
+		{{#each pathParams}}
+		"{{name}}": {{camelCase name}},
+		{{/each}}
+	}
+	return r.client.DownloadFile(ctx, "{{{path}}}", pathParams)
+}
+{{else}}
 {{#ifPaginated this}}
 func (r *{{PascalCase ../resource.name}}Resource) {{PascalCase name}}({{goMethodParams this}}) iter.Seq2[{{goType paginationConfig.itemType}}, error] {
 	pathParams := map[string]string{
@@ -72,5 +92,7 @@ func (r *{{PascalCase ../resource.name}}Resource) {{PascalCase name}}({{goMethod
 	{{/if}}
 }
 {{/ifPaginated}}
+{{/isDownload}}
+{{/isUpload}}
 
 {{/each}}

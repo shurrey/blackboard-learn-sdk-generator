@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
+{{#if langConfig.validation}}
+using System.ComponentModel.DataAnnotations;
+{{/if}}
 
 namespace {{namespace}}.Types;
 
@@ -13,6 +16,11 @@ public record {{model.name}}
     {{#if description}}
     /// <summary>{{singleLine description}}</summary>
     {{/if}}
+{{#if ../langConfig.validation}}
+{{#if required}}
+    [Required]
+{{/if}}
+{{/if}}
     [JsonPropertyName("{{name}}")]
     public {{#if required}}{{csType type}}{{else}}{{csNullableType type}}{{/if}} {{PascalCase name}} { get; init; }
 

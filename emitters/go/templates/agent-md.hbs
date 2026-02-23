@@ -1,0 +1,157 @@
+# AGENT.md - Coding Assistant Guide
+
+> This file provides context for AI coding assistants working with the {{metadata.name}} Go SDK.
+
+## Overview
+
+This is the official Go SDK for the Blackboard Learn REST API. It provides typed functions for all API endpoints with built-in OAuth 2.0 authentication, pagination, retry logic, and error handling.
+
+**Version:** {{metadata.version}}
+**Runtime:** Go 1.24+
+**Module:** `{{goModule}}`
+
+## Installation
+
+```bash
+go get {{goModule}}
+```
+
+## Quick Start
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "os"
+
+    bblearn "{{goModule}}"
+)
+
+func main() {
+    client := bblearn.NewClient(
+        bblearn.WithDomain("your-institution.blackboard.com"),
+        bblearn.WithClientCredentials(
+            os.Getenv("BB_CLIENT_ID"),
+            os.Getenv("BB_CLIENT_SECRET"),
+        ),
+    )
+
+    ctx := context.Background()
+
+    // List courses
+    courses, err := client.Courses.List(ctx)
+    if err != nil {
+        panic(err)
+    }
+
+    // Get a specific course
+    course, err := client.Courses.Get(ctx, "_123_1")
+    if err != nil {
+        panic(err)
+    }
+    fmt.Println(course.Name)
+}
+```
+
+## Authentication
+
+The SDK supports two OAuth 2.0 flows:
+
+1. **Two-legged (Client Credentials)** - for server-to-server integration
+2. **Three-legged (Authorization Code + PKCE)** - for user-context operations
+
+Token management is automatic. See [docs/authentication.md](docs/authentication.md) for details.
+
+## Architecture
+
+### Client Structure
+
+```go
+client.Courses              // *CoursesResource
+client.Courses.Contents     // *ContentsResource
+client.Courses.Users        // *UsersResource
+client.Users                // *UsersResource (top-level)
+```
+
+### Error Handling
+
+```go
+import "errors"
+
+course, err := client.Courses.Get(ctx, "invalid")
+if err != nil {
+    var notFound *bblearn.NotFoundError
+    var apiErr *bblearn.APIError
+    if errors.As(err, &notFound) {
+        // Handle 404
+    } else if errors.As(err, &apiErr) {
+        fmt.Println(apiErr.Status, apiErr.Message)
+    }
+}
+```
+
+### Pagination
+
+List methods return a paginator:
+
+```go
+iter := client.Courses.List(ctx)
+for iter.Next() {
+    course := iter.Value()
+    fmt.Println(course.Name)
+}
+if err := iter.Err(); err != nil {
+    panic(err)
+}
+```
+
+### ID Formats
+
+Blackboard supports multiple ID formats:
+- Primary ID: `_123_1`
+- External ID: `externalId:COURSE-101`
+- Username: `userName:jdoe`
+- UUID: `uuid:abc-def-123`
+
+## Available Resources
+
+{{#each topLevelResources}}
+- **{{PascalCase name}}** - `client.{{PascalCase name}}`{{#each methods}} | `{{PascalCase name}}`{{/each}}
+{{#each subresources}}
+  - **{{PascalCase name}}** - `client.{{PascalCase ../name}}.{{PascalCase name}}`{{#each methods}} | `{{PascalCase name}}`{{/each}}
+{{/each}}
+{{/each}}
+
+## Project Structure
+
+```
+client.go           # Main client with functional options
+http_client.go      # HTTP layer with retry logic (net/http)
+auth.go             # OAuth 2.0 implementation
+pagination.go       # Pagination iterator
+errors.go           # Error types
+<resource>.go       # One file per API resource
+types_<model>.go    # Data model structs
+docs/               # API documentation per resource
+```
+
+## Key Patterns
+
+- All methods take `context.Context` as the first argument
+- Uses standard `net/http` (no external HTTP dependency)
+- Functional options pattern for client configuration
+- Errors use `errors.As()` for type checking
+- `json` struct tags for serialization
+- Go naming conventions (PascalCase exports)
+
+## Documentation
+
+- [Authentication Guide](docs/authentication.md)
+{{#each topLevelResources}}
+- [{{PascalCase name}}](docs/{{name}}.md)
+{{#each subresources}}
+- [{{PascalCase name}}](docs/{{name}}.md)
+{{/each}}
+{{/each}}

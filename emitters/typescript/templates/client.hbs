@@ -8,7 +8,7 @@
  * @license {{metadata.license}}
  */
 
-import { HttpClient, type HttpClientOptions } from './http-client.js';
+import { HttpClient, type HttpClientOptions, type LogLevel } from './http-client.js';
 import { OAuth2Client, type AuthConfig } from './auth.js';
 {{#each topLevelResources}}
 import { {{PascalCase name}}Resource } from './resources/{{name}}.js';
@@ -27,6 +27,8 @@ export interface ClientOptions {
   maxRetries?: number;
   /** Custom fetch implementation */
   fetch?: typeof globalThis.fetch;
+  /** Log level for HTTP requests: 'none' (default), 'basic', or 'verbose' */
+  logLevel?: LogLevel;
 }
 
 export class Client {
@@ -52,6 +54,7 @@ export class Client {
       maxRetries: options.maxRetries ?? 3,
       authClient: this.authClient,
       fetch: options.fetch,
+      logLevel: options.logLevel,
     });
 
 {{#each topLevelResources}}

@@ -63,6 +63,11 @@ export class TypeScriptEmitter extends BaseEmitter {
     // Integration tests
     files.set('integration:all', 'tests/integration/integration.test.ts');
 
+    // Repo files
+    files.set('contributing', 'CONTRIBUTING.md');
+    files.set('ci-workflow', '.github/workflows/ci.yml');
+    files.set('agent-md', 'AGENT.md');
+
     return files;
   }
 

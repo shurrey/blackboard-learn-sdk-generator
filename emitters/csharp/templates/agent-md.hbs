@@ -1,0 +1,137 @@
+# AGENT.md - Coding Assistant Guide
+
+> This file provides context for AI coding assistants working with the {{metadata.name}} C# SDK.
+
+## Overview
+
+This is the official C# SDK for the Blackboard Learn REST API. It provides typed async methods for all API endpoints with built-in OAuth 2.0 authentication, pagination, retry logic, and error handling.
+
+**Version:** {{metadata.version}}
+**Runtime:** .NET 9.0+
+**Namespace:** `{{namespace}}`
+
+## Installation
+
+```bash
+dotnet add package {{namespace}}
+```
+
+## Quick Start
+
+```csharp
+using {{namespace}};
+
+var client = new BlackboardLearnClient(new ClientOptions
+{
+    Domain = "your-institution.blackboard.com",
+    ClientId = Environment.GetEnvironmentVariable("BB_CLIENT_ID")!,
+    ClientSecret = Environment.GetEnvironmentVariable("BB_CLIENT_SECRET")!
+});
+
+// List courses
+var courses = await client.Courses.ListAsync();
+
+// Get a specific course
+var course = await client.Courses.GetAsync("_123_1");
+```
+
+## Authentication
+
+The SDK supports two OAuth 2.0 flows:
+
+1. **Two-legged (Client Credentials)** - for server-to-server integration
+2. **Three-legged (Authorization Code + PKCE)** - for user-context operations
+
+Token management is automatic. See [docs/authentication.md](docs/authentication.md) for details.
+
+## Architecture
+
+### Client Structure
+
+```csharp
+client.Courses              // CoursesResource
+client.Courses.Contents     // ContentsResource
+client.Courses.Users        // UsersResource
+client.Users                // UsersResource (top-level)
+```
+
+### Error Handling
+
+```csharp
+using {{namespace}};
+
+try
+{
+    await client.Courses.GetAsync("invalid");
+}
+catch (NotFoundError)
+{
+    // Handle 404
+}
+catch (APIError e)
+{
+    Console.Error.WriteLine($"{e.Status} {e.Message}");
+}
+```
+
+### Pagination
+
+List methods return `IAsyncEnumerable`:
+
+```csharp
+await foreach (var course in client.Courses.ListAsync())
+{
+    Console.WriteLine(course.Name);
+}
+```
+
+### ID Formats
+
+Blackboard supports multiple ID formats:
+- Primary ID: `_123_1`
+- External ID: `externalId:COURSE-101`
+- Username: `userName:jdoe`
+- UUID: `uuid:abc-def-123`
+
+## Available Resources
+
+{{#each topLevelResources}}
+- **{{PascalCase name}}** - `client.{{PascalCase name}}`{{#each methods}} | `{{PascalCase name}}Async`{{/each}}
+{{#each subresources}}
+  - **{{PascalCase name}}** - `client.{{PascalCase ../name}}.{{PascalCase name}}`{{#each methods}} | `{{PascalCase name}}Async`{{/each}}
+{{/each}}
+{{/each}}
+
+## Project Structure
+
+```
+src/{{namespace}}/
+  Client.cs            # Main client class
+  HttpClient.cs        # HTTP layer with retry logic
+  OAuth2Client.cs      # OAuth 2.0 implementation
+  Paginator.cs         # Async pagination
+  Errors.cs            # Error class hierarchy
+  Resources/           # One file per API resource
+  Types/               # Data model classes
+tests/                 # Unit tests (xUnit)
+docs/                  # API documentation per resource
+```
+
+## Key Patterns
+
+- All methods are async and return `Task<T>` (use `await`)
+- System.Text.Json for serialization
+- `IAsyncEnumerable<T>` for pagination
+- PascalCase naming convention
+- Path parameters are passed as method arguments
+- Query parameters use optional parameter objects
+
+## Documentation
+
+- [Authentication Guide](docs/authentication.md)
+{{#each topLevelResources}}
+- [{{PascalCase name}}](docs/{{name}}.md)
+{{#each subresources}}
+- [{{PascalCase name}}](docs/{{name}}.md)
+{{/each}}
+{{/each}}

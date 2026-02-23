@@ -1,0 +1,7 @@
+vendor/
+*.exe
+*.test
+*.out
+.DS_Store
+.env
+coverage.out

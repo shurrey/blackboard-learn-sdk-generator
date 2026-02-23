@@ -56,6 +56,25 @@ func NewOAuth2Client(baseURL, clientID, clientSecret, tokenEndpoint string) *OAu
 	}
 }
 
+// RevokeToken clears the locally cached access token and expiry.
+//
+// Note: Blackboard Learn does not expose an RFC 7009 revocation endpoint,
+// so this only clears local state.
+func (o *OAuth2Client) RevokeToken() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.accessToken = ""
+	o.tokenExpiry = time.Time{}
+}
+
+// IsAuthenticated returns true if a valid access token exists that is not
+// within 60 seconds of its expiry time.
+func (o *OAuth2Client) IsAuthenticated() bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.accessToken != "" && time.Now().Before(o.tokenExpiry.Add(-time.Minute))
+}
+
 // SetAccessToken sets an externally obtained access token.
 func (o *OAuth2Client) SetAccessToken(token string) {
 	o.mu.Lock()

@@ -2,6 +2,7 @@ export { downloadSpec, loadSpecFromFile, type DownloadOptions } from './download
 export { convertToOpenAPI3, type ConvertOptions } from './convert.js';
 export { applyTransforms, type TransformOptions } from './transforms/index.js';
 export { validateSpec, type ValidateOptions, type ValidationResult } from './validate.js';
+export { computeDiff, hasDiffChanges, formatDiffReport, formatDiffMarkdown, type DiffResult } from './diff.js';
 
 export interface SpecPipelineOptions {
   specUrl?: string;

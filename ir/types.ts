@@ -148,6 +148,8 @@ export interface RequestBody {
   type: TypeRef;
   /** Description */
   description?: string;
+  /** Whether this is a binary upload (multipart/form-data) */
+  binary?: boolean;
 }
 
 export interface MethodResponse {
@@ -159,6 +161,8 @@ export interface MethodResponse {
   type: TypeRef;
   /** Description */
   description?: string;
+  /** Whether this is a binary download (application/octet-stream) */
+  binary?: boolean;
 }
 
 // ─── Type System ────────────────────────────────────────────────────────────────

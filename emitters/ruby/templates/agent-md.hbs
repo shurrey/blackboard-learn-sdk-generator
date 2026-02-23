@@ -1,0 +1,137 @@
+# AGENT.md - Coding Assistant Guide
+
+> This file provides context for AI coding assistants working with the {{metadata.name}} Ruby SDK.
+
+## Overview
+
+This is the official Ruby SDK for the Blackboard Learn REST API. It provides methods for all API endpoints with built-in OAuth 2.0 authentication, pagination, retry logic, and error handling.
+
+**Version:** {{metadata.version}}
+**Runtime:** Ruby 3.4+
+**Gem:** `{{gemName}}`
+
+## Installation
+
+```ruby
+gem '{{gemName}}'
+```
+
+Or install directly:
+
+```bash
+gem install {{gemName}}
+```
+
+## Quick Start
+
+```ruby
+require '{{gemName}}'
+
+client = {{moduleName}}::Client.new(
+  domain: 'your-institution.blackboard.com',
+  client_id: ENV['BB_CLIENT_ID'],
+  client_secret: ENV['BB_CLIENT_SECRET']
+)
+
+# List courses
+courses = client.courses.list
+
+# Get a specific course
+course = client.courses.get(course_id: '_123_1')
+```
+
+## Authentication
+
+The SDK supports two OAuth 2.0 flows:
+
+1. **Two-legged (Client Credentials)** - for server-to-server integration
+2. **Three-legged (Authorization Code + PKCE)** - for user-context operations
+
+Token management is automatic. See [docs/authentication.md](docs/authentication.md) for details.
+
+## Architecture
+
+### Client Structure
+
+```ruby
+client.courses              # CoursesResource
+client.courses.contents     # ContentsResource
+client.courses.users        # UsersResource
+client.users                # UsersResource (top-level)
+```
+
+### Error Handling
+
+```ruby
+begin
+  client.courses.get(course_id: 'invalid')
+rescue {{moduleName}}::NotFoundError
+  # Handle 404
+rescue {{moduleName}}::RateLimitError
+  # Retry-After header is respected automatically
+rescue {{moduleName}}::APIError => e
+  puts "#{e.status} #{e.message}"
+end
+```
+
+### Pagination
+
+List methods return an `Enumerator`:
+
+```ruby
+client.courses.list.each do |course|
+  puts course.name
+end
+```
+
+### ID Formats
+
+Blackboard supports multiple ID formats:
+- Primary ID: `_123_1`
+- External ID: `externalId:COURSE-101`
+- Username: `userName:jdoe`
+- UUID: `uuid:abc-def-123`
+
+## Available Resources
+
+{{#each topLevelResources}}
+- **{{snakeCase name}}** - `client.{{snakeCase name}}`{{#each methods}} | `{{name}}`{{/each}}
+{{#each subresources}}
+  - **{{snakeCase name}}** - `client.{{snakeCase ../name}}.{{snakeCase name}}`{{#each methods}} | `{{name}}`{{/each}}
+{{/each}}
+{{/each}}
+
+## Project Structure
+
+```
+lib/{{gemName}}/
+  client.rb          # Main client class
+  http_client.rb     # HTTP layer with retry logic (Faraday)
+  auth.rb            # OAuth 2.0 implementation
+  pagination.rb      # Pagination enumerator
+  errors.rb          # Error class hierarchy
+  resources/         # One file per API resource
+  types/             # Data model classes
+spec/                # Unit tests (RSpec)
+  integration/       # Integration tests
+docs/                # API documentation per resource
+```
+
+## Key Patterns
+
+- Uses Faraday for HTTP requests
+- snake_case naming convention
+- Keyword arguments for parameters
+- Error hierarchy with rescue
+- Lazy enumerators for pagination
+- Data classes for models
+
+## Documentation
+
+- [Authentication Guide](docs/authentication.md)
+{{#each topLevelResources}}
+- [{{PascalCase name}}](docs/{{name}}.md)
+{{#each subresources}}
+- [{{PascalCase name}}](docs/{{name}}.md)
+{{/each}}
+{{/each}}

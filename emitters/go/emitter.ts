@@ -73,6 +73,11 @@ export class GoEmitter extends BaseEmitter {
     // Integration tests
     files.set('integration:all', 'integration_test.go');
 
+    // Repo files
+    files.set('contributing', 'CONTRIBUTING.md');
+    files.set('ci-workflow', '.github/workflows/ci.yml');
+    files.set('agent-md', 'AGENT.md');
+
     return files;
   }
 

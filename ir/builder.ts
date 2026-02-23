@@ -195,11 +195,22 @@ export class IRBuilder {
       };
     }
 
-    // Fallback to form data
-    const formContent = content['application/x-www-form-urlencoded'] ?? content['multipart/form-data'];
+    // Fallback to form data (multipart is binary upload)
+    const multipartContent = content['multipart/form-data'];
+    if (multipartContent?.schema) {
+      return {
+        contentType: 'multipart/form-data',
+        required: body.required ?? false,
+        type: this.resolver.schemaToTypeRef(multipartContent.schema),
+        description: body.description,
+        binary: true,
+      };
+    }
+
+    const formContent = content['application/x-www-form-urlencoded'];
     if (formContent?.schema) {
       return {
-        contentType: Object.keys(content).find(k => k.includes('form'))!,
+        contentType: 'application/x-www-form-urlencoded',
         required: body.required ?? false,
         type: this.resolver.schemaToTypeRef(formContent.schema),
         description: body.description,
@@ -221,6 +232,18 @@ export class IRBuilder {
     for (const code of ['200', '201', '202', '204']) {
       const response = responses[code];
       if (!response) continue;
+
+      // Check for binary download (application/octet-stream)
+      const binaryContent = response.content?.['application/octet-stream'];
+      if (binaryContent) {
+        return {
+          statusCode: parseInt(code),
+          contentType: 'application/octet-stream',
+          type: { kind: 'primitive', type: 'string', format: 'binary' },
+          description: response.description,
+          binary: true,
+        };
+      }
 
       const content = response.content?.['application/json'];
       if (!content?.schema) {

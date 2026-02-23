@@ -1,3 +1,7 @@
 module {{goModule}}
 
 go {{langConfig.minVersion}}
+{{#if langConfig.validation}}
+
+require github.com/go-playground/validator/v10 v10.22.0
+{{/if}}

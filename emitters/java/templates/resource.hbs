@@ -39,6 +39,24 @@ public class {{PascalCase resource.name}}Resource {
     {{#if description}}
     /** {{singleLine description}} */
     {{/if}}
+    {{#isUpload this}}
+    public Object {{camelCase name}}({{#each pathParams}}String {{camelCase name}}, {{/each}}String fieldName, String filename, byte[] fileData, String contentType) {
+        Map<String, String> pathParams = new HashMap<>();
+        {{#each pathParams}}
+        pathParams.put("{{name}}", String.valueOf({{camelCase name}}));
+        {{/each}}
+        return client.uploadFile("{{{path}}}", pathParams, fieldName, filename, fileData, contentType, Object.class);
+    }
+    {{else}}
+    {{#isDownload this}}
+    public HttpClient.FileDownload {{camelCase name}}({{#each pathParams}}String {{camelCase name}}{{#unless @last}}, {{/unless}}{{/each}}) {
+        Map<String, String> pathParams = new HashMap<>();
+        {{#each pathParams}}
+        pathParams.put("{{name}}", String.valueOf({{camelCase name}}));
+        {{/each}}
+        return client.downloadFile("{{{path}}}", pathParams);
+    }
+    {{else}}
     {{#ifPaginated this}}
     public Iterator<{{javaType paginationConfig.itemType}}> {{camelCase name}}({{javaMethodParams this}}) {
         Map<String, String> pathParams = new HashMap<>();
@@ -76,6 +94,8 @@ public class {{PascalCase resource.name}}Resource {
         {{/if}}
     }
     {{/ifPaginated}}
+    {{/isDownload}}
+    {{/isUpload}}
 
 {{/each}}
 }

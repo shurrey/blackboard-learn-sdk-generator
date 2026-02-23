@@ -27,6 +27,30 @@ public class {{PascalCase resource.name}}Resource
     {{#if description}}
     /// <summary>{{singleLine description}}</summary>
     {{/if}}
+    {{#isUpload this}}
+    public async Task<T> {{PascalCase name}}Async<T>({{#each pathParams}}string {{camelCase name}}, {{/each}}Stream fileStream, string fileName, string fieldName = "file", CancellationToken cancellationToken = default)
+    {
+        var pathParams = new Dictionary<string, string>
+        {
+            {{#each pathParams}}
+            ["{{name}}"] = {{camelCase name}}.ToString(),
+            {{/each}}
+        };
+        return await _client.UploadFileAsync<T>("{{{path}}}", pathParams, fileStream, fileName, fieldName, cancellationToken);
+    }
+    {{else}}
+    {{#isDownload this}}
+    public async Task<LearnHttpClient.FileDownload> {{PascalCase name}}Async({{#each pathParams}}string {{camelCase name}}{{#unless @last}}, {{/unless}}{{/each}}{{#if (hasItems pathParams)}}, {{/if}}CancellationToken cancellationToken = default)
+    {
+        var pathParams = new Dictionary<string, string>
+        {
+            {{#each pathParams}}
+            ["{{name}}"] = {{camelCase name}}.ToString(),
+            {{/each}}
+        };
+        return await _client.DownloadFileAsync("{{{path}}}", pathParams, cancellationToken);
+    }
+    {{else}}
     {{#ifPaginated this}}
     public IAsyncEnumerable<{{csType paginationConfig.itemType}}> {{PascalCase name}}Async({{csMethodParams this}}{{#if (or (hasItems pathParams) requestBody)}}, {{/if}}CancellationToken cancellationToken = default)
     {
@@ -70,6 +94,8 @@ public class {{PascalCase resource.name}}Resource
         {{/if}}
     }
     {{/ifPaginated}}
+    {{/isDownload}}
+    {{/isUpload}}
 
 {{/each}}
 }

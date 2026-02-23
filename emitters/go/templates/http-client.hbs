@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"math/rand"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -22,6 +24,8 @@ type HTTPClient struct {
 	maxRetries int
 	authClient *OAuth2Client
 	httpClient *http.Client
+	logger     *slog.Logger
+	logLevel   string
 }
 
 var retryStatusCodes = map[int]bool{
@@ -36,7 +40,14 @@ func NewHTTPClient(baseURL string, timeoutMs int, maxRetries int, authClient *OA
 		maxRetries: maxRetries,
 		authClient: authClient,
 		httpClient: &http.Client{Timeout: time.Duration(timeoutMs) * time.Millisecond},
+		logLevel:   "none",
 	}
+}
+
+// SetLogger sets the logger and log level on the HTTPClient.
+func (c *HTTPClient) SetLogger(logger *slog.Logger, logLevel string) {
+	c.logger = logger
+	c.logLevel = logLevel
 }
 
 func (c *HTTPClient) Get(ctx context.Context, path string, pathParams map[string]string, result interface{}) error {
@@ -75,6 +86,99 @@ func (c *HTTPClient) RawRequest(ctx context.Context, method, rawURL string) (*ht
 	req.Header.Set("Accept", "application/json")
 
 	return c.httpClient.Do(req)
+}
+
+// FileDownload represents a downloaded file.
+type FileDownload struct {
+	Data        []byte
+	ContentType string
+	Filename    string
+}
+
+// UploadFile uploads a file using multipart/form-data.
+func (c *HTTPClient) UploadFile(ctx context.Context, path string, pathParams map[string]string,
+	fieldName string, filename string, fileData []byte, result interface{}) error {
+	reqURL := c.buildURL(path, pathParams)
+
+	token, err := c.authClient.GetToken(ctx)
+	if err != nil {
+		return fmt.Errorf("auth error: %w", err)
+	}
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, err := writer.CreateFormFile(fieldName, filename)
+	if err != nil {
+		return fmt.Errorf("create form file: %w", err)
+	}
+	if _, err := part.Write(fileData); err != nil {
+		return fmt.Errorf("write file data: %w", err)
+	}
+	writer.Close()
+
+	req, err := http.NewRequestWithContext(ctx, "POST", reqURL, &buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("upload failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		if resp.StatusCode == 204 || result == nil {
+			return nil
+		}
+		return json.NewDecoder(resp.Body).Decode(result)
+	}
+	respBody, _ := io.ReadAll(resp.Body)
+	return NewAPIError(resp.StatusCode, string(respBody), "")
+}
+
+// DownloadFile downloads a file as raw bytes.
+func (c *HTTPClient) DownloadFile(ctx context.Context, path string, pathParams map[string]string) (*FileDownload, error) {
+	reqURL := c.buildURL(path, pathParams)
+
+	token, err := c.authClient.GetToken(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("auth error: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("download failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("read body: %w", err)
+		}
+		contentType := resp.Header.Get("Content-Type")
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+		filename := ""
+		if disp := resp.Header.Get("Content-Disposition"); disp != "" {
+			if idx := strings.Index(disp, "filename="); idx >= 0 {
+				filename = strings.Trim(disp[idx+9:], "\" ")
+			}
+		}
+		return &FileDownload{Data: data, ContentType: contentType, Filename: filename}, nil
+	}
+	respBody, _ := io.ReadAll(resp.Body)
+	return nil, NewAPIError(resp.StatusCode, string(respBody), "")
 }
 
 func (c *HTTPClient) request(ctx context.Context, method, path string, pathParams map[string]string, body interface{}, result interface{}) error {
@@ -118,6 +222,17 @@ func (c *HTTPClient) request(ctx context.Context, method, path string, pathParam
 			continue
 		}
 		defer resp.Body.Close()
+
+		if c.logLevel != "none" && c.logger != nil {
+			c.logger.Info("[BlackboardSDK] request", "method", method, "url", reqURL, "status", resp.StatusCode)
+			if c.logLevel == "verbose" {
+				respHeaders := make(map[string]string)
+				for k, v := range resp.Header {
+					respHeaders[k] = strings.Join(v, ", ")
+				}
+				c.logger.Debug("[BlackboardSDK] response details", "headers", respHeaders)
+			}
+		}
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			if resp.StatusCode == 204 || result == nil {

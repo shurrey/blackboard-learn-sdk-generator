@@ -44,6 +44,7 @@ class Client:
         *,
         timeout: float = 30.0,
         max_retries: int = 3,
+        log_level: str = "none",
     ) -> None:
         self._auth_client = OAuth2Client(
             config=AuthConfig(
@@ -60,6 +61,7 @@ class Client:
                 timeout=timeout,
                 max_retries=max_retries,
                 auth_client=self._auth_client,
+                log_level=log_level,
             )
         )
 

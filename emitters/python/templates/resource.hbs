@@ -29,6 +29,55 @@ class {{PascalCase resource.name}}Resource:
 {{/each}}
 
 {{#each resource.methods}}
+{{#isUpload this}}
+    def {{snakeCase name}}(
+        self,
+{{#each pathParams}}
+        {{snakeCase name}}: str,
+{{/each}}
+        file: Any,
+        *,
+        field_name: str = "file",
+    ) -> Any:
+{{#if description}}
+        """{{description}}"""
+{{else}}
+        """Upload file for {{PascalCase ../resource.name}}."""
+{{/if}}
+        path_params: dict[str, str] = {
+{{#each pathParams}}
+            "{{name}}": {{snakeCase name}},
+{{/each}}
+        }
+        return self._client.upload_file(
+            "{{{path}}}",
+            file,
+            field_name=field_name,
+            path_params=path_params,
+        )
+{{else}}
+{{#isDownload this}}
+    def {{snakeCase name}}(
+        self,
+{{#each pathParams}}
+        {{snakeCase name}}: str,
+{{/each}}
+    ) -> dict[str, Any]:
+{{#if description}}
+        """{{description}}"""
+{{else}}
+        """Download file from {{PascalCase ../resource.name}}."""
+{{/if}}
+        path_params: dict[str, str] = {
+{{#each pathParams}}
+            "{{name}}": {{snakeCase name}},
+{{/each}}
+        }
+        return self._client.download_file(
+            "{{{path}}}",
+            path_params=path_params,
+        )
+{{else}}
     def {{snakeCase name}}(
         {{pyMethodParams this}},
     ) -> {{pyReturnType this}}:
@@ -101,5 +150,7 @@ class {{PascalCase resource.name}}Resource:
         )
 {{/if}}
 {{/ifPaginated}}
+{{/isDownload}}
+{{/isUpload}}
 
 {{/each}}

@@ -2,6 +2,7 @@
 
 require "faraday"
 require "json"
+require "logger"
 
 module {{moduleName}}
   # HTTP client with retry, rate limiting, and error handling.
@@ -12,10 +13,12 @@ module {{moduleName}}
 
     attr_reader :base_url
 
-    def initialize(base_url:, timeout:, max_retries:, auth_client:)
+    def initialize(base_url:, timeout:, max_retries:, auth_client:, logger: nil, log_level: "none")
       @base_url = base_url.chomp("/")
       @max_retries = max_retries
       @auth_client = auth_client
+      @logger = logger || Logger.new($stdout, progname: "BlackboardSDK")
+      @log_level = log_level
       @conn = Faraday.new(url: @base_url) do |f|
         f.options.timeout = timeout
         f.request :json
@@ -81,6 +84,50 @@ module {{moduleName}}
       end, :itself)
     end
 
+    # Upload a file using multipart/form-data.
+    def upload_file(path, file, path_params: {}, field_name: "file")
+      url = build_url(path, path_params)
+      token = @auth_client.get_token
+
+      upload_conn = Faraday.new(url: @base_url) do |f|
+        f.request :multipart
+        f.response :json, content_type: /\bjson$/
+      end
+
+      payload = { field_name => Faraday::Multipart::FilePart.new(file, "application/octet-stream") }
+      response = upload_conn.post(url, payload, {
+        "Authorization" => "Bearer #{token}"
+      })
+
+      if response.success?
+        return response.status == 204 ? nil : response.body
+      end
+      raise APIError.from_response(response.status, response.body, nil)
+    end
+
+    # Download a file as raw bytes.
+    def download_file(path, path_params: {})
+      url = build_url(path, path_params)
+      token = @auth_client.get_token
+
+      download_conn = Faraday.new(url: @base_url) do |f|
+        f.options.timeout = @conn.options.timeout
+      end
+
+      response = download_conn.get(url, nil, {
+        "Authorization" => "Bearer #{token}"
+      })
+
+      if response.success?
+        content_type = response.headers["Content-Type"] || "application/octet-stream"
+        disposition = response.headers["Content-Disposition"] || ""
+        filename = disposition[/filename="?([^";\n]+)"?/, 1]
+        { data: response.body, content_type: content_type, filename: filename }
+      else
+        raise APIError.from_response(response.status, response.body, nil)
+      end
+    end
+
     private
 
     def request(method, path, path_params: {}, query_params: {}, body: nil)
@@ -95,6 +142,14 @@ module {{moduleName}}
           "Accept" => "application/json"
         }) do |req|
           req.params.merge!(query_params) unless query_params.empty?
+        end
+
+        if @log_level != "none"
+          @logger.info { "#{method.to_s.upcase} #{url} → #{response.status}" }
+          if @log_level == "verbose"
+            @logger.debug { "Response Headers: #{response.headers.to_h}" }
+            @logger.debug { "Response Body: #{response.body}" }
+          end
         end
 
         if response.success?

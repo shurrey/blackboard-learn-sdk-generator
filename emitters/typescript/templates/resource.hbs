@@ -31,6 +31,20 @@ export class {{PascalCase resource.name}}Resource {
   {{#if description}}
   /** {{description}} */
   {{/if}}
+  {{#isUpload this}}
+  async {{camelCase name}}({{#each pathParams}}{{camelCase name}}: string, {{/each}}file: Blob | File, fieldName?: string): Promise<any> {
+    return this.client.uploadFile('{{{path}}}', file, fieldName, {
+      pathParams: { {{#each pathParams}}'{{name}}': {{camelCase name}}{{#unless @last}}, {{/unless}}{{/each}} },
+    });
+  }
+  {{else}}
+  {{#isDownload this}}
+  async {{camelCase name}}({{#each pathParams}}{{camelCase name}}: string{{#unless @last}}, {{/unless}}{{/each}}): Promise<{ data: ArrayBuffer; contentType: string; filename?: string }> {
+    return this.client.downloadFile('{{{path}}}', {
+      pathParams: { {{#each pathParams}}'{{name}}': {{camelCase name}}{{#unless @last}}, {{/unless}}{{/each}} },
+    });
+  }
+  {{else}}
   {{#ifPaginated this}}
   {{camelCase name}}({{tsMethodParams this}}): AsyncIterable<{{tsType paginationConfig.itemType}}> {
     return paginate<{{tsType paginationConfig.itemType}}>(this.client, '{{{path}}}', {
@@ -72,6 +86,8 @@ export class {{PascalCase resource.name}}Resource {
     {{/if}}
   }
   {{/ifPaginated}}
+  {{/isDownload}}
+  {{/isUpload}}
 
 {{/each}}
 }

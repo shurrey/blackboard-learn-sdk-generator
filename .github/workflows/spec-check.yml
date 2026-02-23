@@ -1,0 +1,76 @@
+name: Spec Check
+
+on:
+  schedule:
+    # Every Monday at 9:00 AM UTC
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-spec:
+    name: Check for Upstream Spec Changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for spec changes
+        id: diff
+        run: |
+          tsx bin/spec-diff.ts --verbose 2>&1 | tee spec-diff-output.txt || true
+          if tsx bin/spec-diff.ts; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Vendor updated spec
+        if: steps.diff.outputs.changed == 'true'
+        run: tsx bin/spec-vendor.ts --from-download
+
+      - name: Create PR with spec update
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          BRANCH="spec-update/$(date +%Y-%m-%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add spec/vendored/
+          git commit -m "chore: update vendored API spec $(date +%Y-%m-%d)"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "Update Blackboard Learn API spec ($(date +%Y-%m-%d))" \
+            --body "$(cat <<'EOF'
+          ## Upstream Spec Changes Detected
+
+          The weekly spec check found differences between our vendored spec and
+          the upstream Blackboard Learn API specification.
+
+          ### Diff Summary
+          $(cat spec-diff-output.txt)
+
+          ### Next Steps
+          1. Review the changes above
+          2. Regenerate SDKs: `npm run generate -- all`
+          3. Run tests: `npm test`
+          4. Merge when satisfied
+          EOF
+          )" \
+            --label "spec-update"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

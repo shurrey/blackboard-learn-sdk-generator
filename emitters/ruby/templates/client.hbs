@@ -21,7 +21,7 @@ module {{moduleName}}
     # @param client_secret [String] OAuth2 client secret
     # @param timeout [Integer] Request timeout in seconds (default: 30)
     # @param max_retries [Integer] Maximum number of retries (default: 3)
-    def initialize(base_url:, client_id:, client_secret:, timeout: 30, max_retries: 3)
+    def initialize(base_url:, client_id:, client_secret:, timeout: 30, max_retries: 3, log_level: "none")
       @auth_client = OAuth2Client.new(
         base_url: base_url,
         client_id: client_id,
@@ -33,7 +33,8 @@ module {{moduleName}}
         base_url: base_url,
         timeout: timeout,
         max_retries: max_retries,
-        auth_client: @auth_client
+        auth_client: @auth_client,
+        log_level: log_level
       )
 
 {{#each topLevelResources}}

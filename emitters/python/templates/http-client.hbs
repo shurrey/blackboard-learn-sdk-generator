@@ -6,11 +6,14 @@ Auto-generated -- do not edit manually.
 
 from __future__ import annotations
 
+import logging
 import time
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Optional
 from urllib.parse import urlencode, quote
+
+_logger = logging.getLogger("blackboard_learn")
 
 import httpx
 
@@ -40,6 +43,7 @@ class HttpClientConfig:
     timeout: float
     max_retries: int
     auth_client: OAuth2Client
+    log_level: str = "none"
 
 
 class HttpClient:
@@ -50,6 +54,7 @@ class HttpClient:
         self._timeout = config.timeout
         self._max_retries = config.max_retries
         self._auth_client = config.auth_client
+        self._log_level = config.log_level
         self._client = httpx.Client(
             timeout=httpx.Timeout(config.timeout),
             follow_redirects=True,
@@ -151,6 +156,94 @@ class HttpClient:
             json=json_body,
         )
 
+    def upload_file(
+        self,
+        path: str,
+        file: Any,
+        *,
+        field_name: str = "file",
+        path_params: Optional[dict[str, str]] = None,
+        query_params: Optional[dict[str, Any]] = None,
+    ) -> Any:
+        """Upload a file using multipart/form-data.
+
+        Args:
+            path: API path template.
+            file: File-like object, bytes, or tuple of (filename, content, content_type).
+            field_name: Form field name for the file.
+            path_params: Path parameter substitutions.
+            query_params: Query parameters.
+
+        Returns:
+            Parsed JSON response.
+        """
+        url = self._build_url(path, path_params)
+        token = self._auth_client.get_token()
+
+        headers: dict[str, str] = {
+            "Authorization": f"Bearer {token}",
+        }
+
+        files = {field_name: file}
+        response = self._client.request(
+            "POST",
+            url,
+            headers=headers,
+            params=query_params,
+            files=files,
+        )
+
+        if response.is_success:
+            if response.status_code == 204:
+                return None
+            return response.json()
+        self._raise_error(response)
+
+    def download_file(
+        self,
+        path: str,
+        *,
+        path_params: Optional[dict[str, str]] = None,
+        query_params: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        """Download a file as raw bytes.
+
+        Args:
+            path: API path template.
+            path_params: Path parameter substitutions.
+            query_params: Query parameters.
+
+        Returns:
+            Dict with 'data' (bytes), 'content_type' (str), and optional 'filename' (str).
+        """
+        url = self._build_url(path, path_params)
+        token = self._auth_client.get_token()
+
+        headers: dict[str, str] = {
+            "Authorization": f"Bearer {token}",
+        }
+
+        response = self._client.request(
+            "GET",
+            url,
+            headers=headers,
+            params=query_params,
+        )
+
+        if not response.is_success:
+            self._raise_error(response)
+
+        content_type = response.headers.get("content-type", "application/octet-stream")
+        disposition = response.headers.get("content-disposition", "")
+        filename = None
+        if "filename=" in disposition:
+            import re
+            match = re.search(r'filename="?([^";\n]+)"?', disposition)
+            if match:
+                filename = match.group(1)
+
+        return {"data": response.content, "content_type": content_type, "filename": filename}
+
     def close(self) -> None:
         """Close the underlying httpx client."""
         self._client.close()
@@ -177,6 +270,12 @@ class HttpClient:
                     query_params=query_params,
                     body=body,
                 )
+
+                if self._log_level != "none":
+                    _logger.info("%s %s → %d", method, url, response.status_code)
+                    if self._log_level == "verbose":
+                        _logger.debug("Response Headers: %s", dict(response.headers))
+                        _logger.debug("Response Body: %s", response.text)
 
                 if response.is_success:
                     if response.status_code == 204:

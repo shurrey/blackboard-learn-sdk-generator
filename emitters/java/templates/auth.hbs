@@ -44,6 +44,27 @@ public class OAuth2Client {
         this.mapper = new ObjectMapper();
     }
 
+    /**
+     * Revoke the current access token by clearing local state.
+     *
+     * <p>Note: Blackboard Learn does not expose an RFC 7009 revocation endpoint,
+     * so this only clears the locally cached token and expiry.</p>
+     */
+    public synchronized void revokeToken() {
+        this.accessToken = null;
+        this.tokenExpiry = 0;
+    }
+
+    /**
+     * Check whether a valid (non-expired) access token is available.
+     *
+     * @return {@code true} if an access token exists and is not within 60 seconds
+     *         of its expiry time.
+     */
+    public synchronized boolean isAuthenticated() {
+        return accessToken != null && System.currentTimeMillis() < tokenExpiry - 60_000;
+    }
+
     /** Set an externally obtained access token (e.g., from 3LO flow). */
     public synchronized void setAccessToken(String token) {
         this.accessToken = token;

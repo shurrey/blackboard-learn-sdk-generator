@@ -151,12 +151,21 @@ export class MCPEmitter extends BaseEmitter {
     files.set('formatter', 'src/blackboard_learn_mcp/utils/formatters.py');
     files.set('error-handler', 'src/blackboard_learn_mcp/utils/error_handler.py');
 
+    // MCP resources and prompts
+    files.set('resource-mcp', 'src/blackboard_learn_mcp/resources.py');
+    files.set('prompt', 'src/blackboard_learn_mcp/prompts.py');
+
     // Build config
     files.set('pyproject-toml', 'pyproject.toml');
 
     // Documentation
     files.set('readme', 'README.md');
     files.set('authentication', 'docs/authentication.md');
+
+    // Repo files
+    files.set('contributing', 'CONTRIBUTING.md');
+    files.set('ci-workflow', '.github/workflows/ci.yml');
+    files.set('agent-md', 'AGENT.md');
 
     return files;
   }

@@ -7,12 +7,15 @@
 import { type OAuth2Client } from './auth.js';
 import { APIError, AuthenticationError, RateLimitError, NotFoundError } from './errors.js';
 
+export type LogLevel = 'none' | 'basic' | 'verbose';
+
 export interface HttpClientOptions {
   baseUrl: string;
   timeout: number;
   maxRetries: number;
   authClient: OAuth2Client;
   fetch?: typeof globalThis.fetch;
+  logLevel?: LogLevel;
 }
 
 export interface RequestOptions {
@@ -32,6 +35,7 @@ export class HttpClient {
   private maxRetries: number;
   private authClient: OAuth2Client;
   private fetchFn: typeof globalThis.fetch;
+  private logLevel: LogLevel;
 
   constructor(options: HttpClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
@@ -39,6 +43,22 @@ export class HttpClient {
     this.maxRetries = options.maxRetries;
     this.authClient = options.authClient;
     this.fetchFn = options.fetch ?? globalThis.fetch;
+    this.logLevel = options.logLevel ?? 'none';
+  }
+
+  private log(method: string, url: string, status: number, headers?: Headers, body?: string): void {
+    if (this.logLevel === 'none') return;
+    console.log(`[BlackboardSDK] ${method} ${url} → ${status}`);
+    if (this.logLevel === 'verbose') {
+      if (headers) {
+        const headerObj: Record<string, string> = {};
+        headers.forEach((value, key) => { headerObj[key] = value; });
+        console.log('[BlackboardSDK] Response Headers:', JSON.stringify(headerObj, null, 2));
+      }
+      if (body) {
+        console.log('[BlackboardSDK] Response Body:', body);
+      }
+    }
   }
 
   async get<T>(path: string, options?: RequestOptions): Promise<T> {
@@ -86,12 +106,82 @@ export class HttpClient {
     return this.fetchFn(url, fetchOptions);
   }
 
+  /**
+   * Upload a file using multipart/form-data.
+   */
+  async uploadFile(
+    path: string,
+    file: Blob | File,
+    fieldName: string = 'file',
+    options?: RequestOptions,
+  ): Promise<any> {
+    const url = this.buildUrl(path, options?.pathParams, options?.queryParams);
+    const token = await this.authClient.getToken();
+
+    const formData = new FormData();
+    formData.append(fieldName, file);
+
+    const response = await this.fetchFn(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        ...options?.headers,
+      },
+      body: formData,
+      signal: AbortSignal.timeout(this.timeout),
+    });
+
+    if (!response.ok) {
+      await this.throwError(response);
+    }
+
+    if (response.status === 204) return undefined;
+    return response.json();
+  }
+
+  /**
+   * Download a file as raw bytes.
+   */
+  async downloadFile(
+    path: string,
+    options?: RequestOptions,
+  ): Promise<{ data: ArrayBuffer; contentType: string; filename?: string }> {
+    const url = this.buildUrl(path, options?.pathParams, options?.queryParams);
+    const token = await this.authClient.getToken();
+
+    const response = await this.fetchFn(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        ...options?.headers,
+      },
+      signal: AbortSignal.timeout(this.timeout),
+    });
+
+    if (!response.ok) {
+      await this.throwError(response);
+    }
+
+    const data = await response.arrayBuffer();
+    const contentType = response.headers.get('Content-Type') ?? 'application/octet-stream';
+    const disposition = response.headers.get('Content-Disposition');
+    const filenameMatch = disposition?.match(/filename="?([^";\n]+)"?/);
+    const filename = filenameMatch?.[1];
+
+    return { data, contentType, filename };
+  }
+
   private async request<T>(method: string, path: string, options?: RequestOptions): Promise<T> {
     const url = this.buildUrl(path, options?.pathParams, options?.queryParams);
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
         const response = await this.rawRequest(method, url, options);
+
+        if (this.logLevel !== 'none') {
+          const responseBody = this.logLevel === 'verbose' ? await response.clone().text() : undefined;
+          this.log(method, url, response.status, response.headers, responseBody);
+        }
 
         if (response.ok) {
           if (response.status === 204) {

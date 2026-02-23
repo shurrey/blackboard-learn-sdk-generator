@@ -1,0 +1,53 @@
+"""
+MCP Resources — read-only URI-addressable data for Blackboard Learn.
+
+Auto-generated — do not edit manually.
+"""
+
+from mcp.server.fastmcp import FastMCP
+
+
+def register_resources(mcp: FastMCP, get_client):
+    """Register all MCP resources."""
+
+    @mcp.resource("learn://courses")
+    def list_courses() -> str:
+        """Read-only list of available courses."""
+        client = get_client()
+        response = client.get("/learn/api/public/v1/courses", path_params={}, query_params={"limit": 100})
+        results = response.get("results", [])
+        lines = ["# Available Courses\n"]
+        for course in results:
+            cid = course.get("id", "?")
+            name = course.get("name", "Untitled")
+            course_id_ext = course.get("courseId", "")
+            lines.append(f"- **{name}** (`{course_id_ext}`) — ID: {cid}")
+        return "\n".join(lines)
+
+    @mcp.resource("learn://courses/{course_id}/enrollments")
+    def course_enrollments(course_id: str) -> str:
+        """Read-only enrollment roster for a course."""
+        client = get_client()
+        response = client.get(
+            "/learn/api/public/v1/courses/{courseId}/users",
+            path_params={"courseId": course_id},
+            query_params={"limit": 200},
+        )
+        results = response.get("results", [])
+        lines = [f"# Enrollments for Course {course_id}\n"]
+        for enrollment in results:
+            user_id = enrollment.get("userId", "?")
+            role = enrollment.get("courseRoleId", "Unknown")
+            lines.append(f"- User `{user_id}` — Role: {role}")
+        return "\n".join(lines)
+
+    @mcp.resource("learn://system/version")
+    def system_version() -> str:
+        """Read-only system version information."""
+        client = get_client()
+        response = client.get("/learn/api/public/v1/system/version", path_params={})
+        major = response.get("learn", {}).get("major", "?")
+        minor = response.get("learn", {}).get("minor", "?")
+        patch = response.get("learn", {}).get("patch", "?")
+        build = response.get("learn", {}).get("build", "?")
+        return f"# System Version\n\nBlackboard Learn {major}.{minor}.{patch} (Build: {build})"

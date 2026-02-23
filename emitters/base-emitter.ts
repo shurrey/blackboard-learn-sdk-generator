@@ -231,6 +231,18 @@ export abstract class BaseEmitter {
     hbs.registerHelper('isEnum', (type: TypeRef) => type?.kind === 'enum');
     hbs.registerHelper('isVoid', (type: TypeRef) => type?.kind === 'void');
 
+    // Binary/file helpers
+    hbs.registerHelper('isBinary', function (this: any, method: Method, options: any) {
+      const isBin = method.requestBody?.binary || method.response?.binary;
+      return isBin ? options.fn(this) : options.inverse(this);
+    });
+    hbs.registerHelper('isUpload', function (this: any, method: Method, options: any) {
+      return method.requestBody?.binary ? options.fn(this) : options.inverse(this);
+    });
+    hbs.registerHelper('isDownload', function (this: any, method: Method, options: any) {
+      return method.response?.binary ? options.fn(this) : options.inverse(this);
+    });
+
     // Indentation helper
     hbs.registerHelper('indent', (text: string, spaces: number) => {
       if (!text) return '';

@@ -27,6 +27,27 @@ module {{moduleName}}
       @conn = Faraday.new(url: @base_url)
     end
 
+    # Revoke the current access token by clearing local state.
+    #
+    # Note: Blackboard Learn does not expose an RFC 7009 revocation endpoint,
+    # so this only clears the locally cached token and expiry.
+    def revoke_token
+      @mutex.synchronize do
+        @access_token = nil
+        @token_expiry = nil
+      end
+    end
+
+    # Check whether a valid (non-expired) access token is available.
+    #
+    # @return [Boolean] true if an access token exists and is not within 60
+    #   seconds of its expiry time.
+    def authenticated?
+      @mutex.synchronize do
+        !@access_token.nil? && !@token_expiry.nil? && Time.now < @token_expiry - 60
+      end
+    end
+
     # Set an externally obtained access token (e.g., from 3LO flow).
     def set_access_token(token)
       @mutex.synchronize do

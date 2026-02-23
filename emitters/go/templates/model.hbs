@@ -12,6 +12,6 @@ type {{model.name}} struct {
 	{{#if description}}
 	// {{singleLine description}}
 	{{/if}}
-	{{PascalCase name}} {{#if required}}{{goType type}}{{else}}{{goPointerType type}}{{/if}} {{{goTag name}}}
+	{{PascalCase name}} {{#if required}}{{goType type}}{{else}}{{goPointerType type}}{{/if}} {{{goTagWithValidation name required ../langConfig.validation}}}
 {{/each}}
 }

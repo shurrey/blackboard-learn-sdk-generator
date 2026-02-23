@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.Extensions.Logging;
 
 namespace {{namespace}};
 
@@ -20,6 +21,8 @@ public class LearnHttpClient : IDisposable
     private readonly OAuth2Client _authClient;
     private readonly HttpClient _httpClient;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ILogger? _logger;
+    private readonly string _logLevel;
 
     private static readonly HashSet<HttpStatusCode> RetryStatusCodes = new()
     {
@@ -32,13 +35,15 @@ public class LearnHttpClient : IDisposable
 
     protected LearnHttpClient() { _jsonOptions = new(); }
 
-    public LearnHttpClient(string baseUrl, TimeSpan timeout, int maxRetries, OAuth2Client authClient)
+    public LearnHttpClient(string baseUrl, TimeSpan timeout, int maxRetries, OAuth2Client authClient, ILogger? logger = null, string logLevel = "none")
     {
         _baseUrl = baseUrl.TrimEnd('/');
         _timeout = timeout;
         _maxRetries = maxRetries;
         _authClient = authClient;
         _httpClient = new HttpClient { Timeout = timeout };
+        _logger = logger;
+        _logLevel = logLevel ?? "none";
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -70,6 +75,55 @@ public class LearnHttpClient : IDisposable
         return await _httpClient.SendAsync(request, ct);
     }
 
+    /// <summary>Upload a file using multipart/form-data.</summary>
+    public async Task<T> UploadFileAsync<T>(string path, Dictionary<string, string> pathParams,
+        Stream fileStream, string fileName, string fieldName = "file", CancellationToken ct = default)
+    {
+        var url = BuildUrl(path, pathParams);
+        var token = await _authClient.GetTokenAsync();
+
+        using var content = new MultipartFormDataContent();
+        using var streamContent = new StreamContent(fileStream);
+        content.Add(streamContent, fieldName, fileName);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _httpClient.SendAsync(request, ct);
+        if (response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == HttpStatusCode.NoContent) return default!;
+            var respContent = await response.Content.ReadAsStringAsync(ct);
+            return JsonSerializer.Deserialize<T>(respContent, _jsonOptions)!;
+        }
+        var errorBody = await response.Content.ReadAsStringAsync(ct);
+        throw APIError.FromResponse((int)response.StatusCode, errorBody, null);
+    }
+
+    /// <summary>Download a file as raw bytes.</summary>
+    public async Task<FileDownload> DownloadFileAsync(string path, Dictionary<string, string> pathParams, CancellationToken ct = default)
+    {
+        var url = BuildUrl(path, pathParams);
+        var token = await _authClient.GetTokenAsync();
+
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _httpClient.SendAsync(request, ct);
+        if (response.IsSuccessStatusCode)
+        {
+            var data = await response.Content.ReadAsByteArrayAsync(ct);
+            var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+            string? fileName = response.Content.Headers.ContentDisposition?.FileName?.Trim('"');
+            return new FileDownload(data, contentType, fileName);
+        }
+        var errorBody = await response.Content.ReadAsStringAsync(ct);
+        throw APIError.FromResponse((int)response.StatusCode, errorBody, null);
+    }
+
+    /// <summary>Represents a downloaded file.</summary>
+    public record FileDownload(byte[] Data, string ContentType, string? FileName);
+
     private async Task<T> RequestAsync<T>(HttpMethod method, string path, Dictionary<string, string> pathParams, object? body, CancellationToken ct)
     {
         var url = BuildUrl(path, pathParams);
@@ -89,6 +143,18 @@ public class LearnHttpClient : IDisposable
             }
 
             var response = await _httpClient.SendAsync(request, ct);
+
+            if (_logLevel != "none" && _logger != null)
+            {
+                _logger.LogInformation("[BlackboardSDK] {Method} {Url} → {StatusCode}", method, url, (int)response.StatusCode);
+                if (_logLevel == "verbose")
+                {
+                    var respHeaders = string.Join(", ", response.Headers.Select(h => $"{h.Key}: {string.Join(", ", h.Value)}"));
+                    var respBody = await response.Content.ReadAsStringAsync(ct);
+                    _logger.LogDebug("[BlackboardSDK] Response Headers: {Headers}", respHeaders);
+                    _logger.LogDebug("[BlackboardSDK] Response Body: {Body}", respBody);
+                }
+            }
 
             if (response.IsSuccessStatusCode)
             {

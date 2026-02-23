@@ -5,17 +5,20 @@ package learn
 
 import (
 	"context"
+	"log/slog"
 )
 
 // ClientOption configures the Client.
 type ClientOption func(*clientConfig)
 
 type clientConfig struct {
-	BaseURL    string
-	ClientID   string
+	BaseURL      string
+	ClientID     string
 	ClientSecret string
-	Timeout    int
-	MaxRetries int
+	Timeout      int
+	MaxRetries   int
+	Logger       *slog.Logger
+	LogLevel     string
 }
 
 // WithTimeout sets the request timeout in milliseconds.
@@ -26,6 +29,14 @@ func WithTimeout(ms int) ClientOption {
 // WithMaxRetries sets the maximum number of retries.
 func WithMaxRetries(n int) ClientOption {
 	return func(c *clientConfig) { c.MaxRetries = n }
+}
+
+// WithLogger sets the logger and log level ('none', 'basic', 'verbose').
+func WithLogger(logger *slog.Logger, logLevel string) ClientOption {
+	return func(c *clientConfig) {
+		c.Logger = logger
+		c.LogLevel = logLevel
+	}
 }
 
 // Client is the Blackboard Learn API client.
@@ -53,6 +64,9 @@ func NewClient(baseURL, clientID, clientSecret string, opts ...ClientOption) *Cl
 
 	authClient := NewOAuth2Client(cfg.BaseURL, cfg.ClientID, cfg.ClientSecret, "{{auth.twoLegged.tokenEndpoint}}")
 	httpClient := NewHTTPClient(cfg.BaseURL, cfg.Timeout, cfg.MaxRetries, authClient)
+	if cfg.Logger != nil {
+		httpClient.SetLogger(cfg.Logger, cfg.LogLevel)
+	}
 
 	c := &Client{
 		httpClient: httpClient,

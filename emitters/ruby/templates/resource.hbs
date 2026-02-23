@@ -30,6 +30,18 @@ module {{moduleName}}
     # @param body [Hash]
     {{/ifHasBody}}
     # @return [{{rubyReturnType this}}]
+    {{#isUpload this}}
+    def {{snakeCase name}}({{#each pathParams}}{{snakeCase name}}, {{/each}}file, field_name: "file")
+      path_params = { {{#each pathParams}}"{{name}}" => {{snakeCase name}}{{#unless @last}}, {{/unless}}{{/each}} }
+      @client.upload_file("{{{path}}}", file, path_params: path_params, field_name: field_name)
+    end
+    {{else}}
+    {{#isDownload this}}
+    def {{snakeCase name}}({{#each pathParams}}{{snakeCase name}}{{#unless @last}}, {{/unless}}{{/each}})
+      path_params = { {{#each pathParams}}"{{name}}" => {{snakeCase name}}{{#unless @last}}, {{/unless}}{{/each}} }
+      @client.download_file("{{{path}}}", path_params: path_params)
+    end
+    {{else}}
     {{#ifPaginated this}}
     def {{snakeCase name}}({{rubyMethodParams this}})
       path_params = { {{#each pathParams}}"{{name}}" => {{snakeCase name}}{{#unless @last}}, {{/unless}}{{/each}} }
@@ -49,6 +61,8 @@ module {{moduleName}}
       {{/if}}
     end
     {{/ifPaginated}}
+    {{/isDownload}}
+    {{/isUpload}}
 
 {{/each}}
   end

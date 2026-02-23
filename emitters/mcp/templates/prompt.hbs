@@ -1,0 +1,80 @@
+"""
+MCP Prompts — workflow templates for Blackboard Learn.
+
+Auto-generated — do not edit manually.
+"""
+
+from mcp.server.fastmcp import FastMCP
+
+
+def register_prompts(mcp: FastMCP):
+    """Register all MCP prompts."""
+
+    @mcp.prompt()
+    def grade_submission_checklist(course_id: str, column_id: str) -> str:
+        """Step-by-step grading workflow for a specific gradebook column."""
+        return f"""# Grade Submission Checklist
+
+## Course: {course_id} | Column: {column_id}
+
+Follow these steps to submit grades:
+
+1. **Verify the column exists**
+   Use `learn_get_course_details` with course_id="{course_id}" to confirm the course.
+
+2. **List enrolled students**
+   Use `learn_list_enrollments` with course_id="{course_id}" to get the student roster.
+
+3. **Check current grades**
+   Use `learn_get_student_grades` for each student to see existing grades.
+
+4. **Submit grades**
+   Use `learn_submit_grade` for each student with:
+   - course_id: "{course_id}"
+   - column_id: "{column_id}"
+   - student_id: (from enrollment list)
+   - score: (the grade value)
+   - text: (optional text feedback)
+   - notes: (optional private notes)
+
+5. **Verify submission**
+   Re-check grades using `learn_get_student_grades` to confirm.
+
+> Tip: Use `learn_bulk_grades` to submit multiple grades at once.
+"""
+
+    @mcp.prompt()
+    def content_creation_wizard(course_id: str) -> str:
+        """Guide for creating content in a course."""
+        return f"""# Content Creation Wizard
+
+## Course: {course_id}
+
+Follow these steps to create content:
+
+1. **Review existing content**
+   Use `learn_get_content_tree` with course_id="{course_id}" to see the current structure.
+
+2. **Choose a parent folder**
+   Identify the folder where you want to add content. Use the content ID from step 1.
+
+3. **Create the content item**
+   Use `learn_create_content` with:
+   - course_id: "{course_id}"
+   - parent_id: (folder ID from step 2)
+   - title: (content title)
+   - content_type: one of Document, File, Folder, Link, Assignment, Test
+   - body: (HTML content for documents)
+   - url: (for Link type)
+
+4. **Verify creation**
+   Use `learn_get_content_tree` again to confirm the new item appears.
+
+### Content Types Reference:
+- **Document**: Rich text content (HTML body)
+- **File**: Uploaded file attachment
+- **Folder**: Container for organizing content
+- **Link**: External URL
+- **Assignment**: Gradeable assignment
+- **Test**: Assessment/quiz
+"""

@@ -22,3 +22,13 @@ export interface {{model.name}} {
   {{name}}{{#unless required}}?{{/unless}}: {{tsType type}};
 {{/each}}
 }
+{{#if langConfig.validation}}
+
+import { z } from 'zod';
+
+export const {{model.name}}Schema = z.object({
+{{#each model.properties}}
+  {{name}}: {{zodType type}}{{#unless required}}.optional(){{/unless}},
+{{/each}}
+});
+{{/if}}

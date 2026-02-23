@@ -24,8 +24,15 @@ resources:
           update: { operationId: "UpdateContent" }
           delete: { operationId: "DeleteContent" }
         subresources:
-          children: {}
-          attachments: {}
+          children:
+            methods:
+              list: { operationId: "GetContentChildren" }
+          attachments:
+            methods:
+              list: { operationId: "GetContentAttachments" }
+              get: { operationId: "GetContentAttachment" }
+              create: { operationId: "CreateContentAttachment" }
+              delete: { operationId: "DeleteContentAttachment" }
       memberships:
         displayName: "Enrollments"
         methods:
@@ -44,13 +51,40 @@ resources:
               update: { operationId: "UpdateGradebookColumn" }
               delete: { operationId: "DeleteGradebookColumn" }
             subresources:
-              attempts: {}
-          schemas: {}
+              attempts:
+                methods:
+                  list: { operationId: "GetColumnAttempts" }
+                  get: { operationId: "GetColumnAttempt" }
+          schemas:
+            methods:
+              list: { operationId: "GetGradebookSchemas" }
+              get: { operationId: "GetGradebookSchema" }
       groups:
+        methods:
+          list: { operationId: "GetCourseGroups" }
+          get: { operationId: "GetCourseGroup" }
+          create: { operationId: "CreateCourseGroup" }
+          update: { operationId: "UpdateCourseGroup" }
+          delete: { operationId: "DeleteCourseGroup" }
         subresources:
-          users: {}
-      messages: {}
-      announcements: {}
+          users:
+            methods:
+              list: { operationId: "GetCourseGroupUsers" }
+              get: { operationId: "GetCourseGroupUser" }
+              create: { operationId: "CreateCourseGroupUser" }
+              delete: { operationId: "DeleteCourseGroupUser" }
+      messages:
+        methods:
+          list: { operationId: "GetCourseMessages" }
+          get: { operationId: "GetCourseMessage" }
+          create: { operationId: "CreateCourseMessage" }
+      announcements:
+        methods:
+          list: { operationId: "GetCourseAnnouncements" }
+          get: { operationId: "GetCourseAnnouncement" }
+          create: { operationId: "CreateCourseAnnouncement" }
+          update: { operationId: "UpdateCourseAnnouncement" }
+          delete: { operationId: "DeleteCourseAnnouncement" }
   users:
     methods:
       list: { operationId: "GetUsers" }
@@ -59,8 +93,17 @@ resources:
       update: { operationId: "UpdateUser" }
       delete: { operationId: "DeleteUser" }
     subresources:
-      sessions: {}
-      observees: {}
+      sessions:
+        methods:
+          list: { operationId: "GetUserSessions" }
+          get: { operationId: "GetUserSession" }
+          delete: { operationId: "DeleteUserSession" }
+      observees:
+        methods:
+          list: { operationId: "GetUserObservees" }
+          get: { operationId: "GetUserObservee" }
+          create: { operationId: "CreateUserObservee" }
+          delete: { operationId: "DeleteUserObservee" }
   announcements:
     methods:
       list: { operationId: "GetSystemAnnouncements" }
@@ -70,7 +113,13 @@ resources:
       delete: { operationId: "DeleteSystemAnnouncement" }
   calendars:
     subresources:
-      items: {}
+      items:
+        methods:
+          list: { operationId: "GetCalendarItems" }
+          get: { operationId: "GetCalendarItem" }
+          create: { operationId: "CreateCalendarItem" }
+          update: { operationId: "UpdateCalendarItem" }
+          delete: { operationId: "DeleteCalendarItem" }
   dataSources:
     methods:
       list: { operationId: "GetDataSources" }
@@ -85,13 +134,28 @@ resources:
       create: { operationId: "CreateTerm" }
       update: { operationId: "UpdateTerm" }
       delete: { operationId: "DeleteTerm" }
-  roles: {}
+  roles:
+    methods:
+      list: { operationId: "GetInstitutionRoles" }
+      get: { operationId: "GetInstitutionRole" }
   lti:
     subresources:
-      placements: {}
+      placements:
+        methods:
+          list: { operationId: "GetLtiPlacements" }
+          get: { operationId: "GetLtiPlacement" }
+          create: { operationId: "CreateLtiPlacement" }
+          update: { operationId: "UpdateLtiPlacement" }
+          delete: { operationId: "DeleteLtiPlacement" }
   institutionHierarchy:
     subresources:
-      nodes: {}
+      nodes:
+        methods:
+          list: { operationId: "GetInstitutionHierarchyNodes" }
+          get: { operationId: "GetInstitutionHierarchyNode" }
+          create: { operationId: "CreateInstitutionHierarchyNode" }
+          update: { operationId: "UpdateInstitutionHierarchyNode" }
+          delete: { operationId: "DeleteInstitutionHierarchyNode" }
 
 pagination:
   style: offset
@@ -147,6 +211,7 @@ languages:
     minVersion: "node22"
     httpClient: fetch
     formatter: prettier
+    validation: true
   java:
     groupId: com.blackboard
     artifactId: learn-sdk
@@ -154,6 +219,7 @@ languages:
     httpClient: java.net.http
     models: jackson
     formatter: google-java-format
+    validation: true
   csharp:
     namespace: Blackboard.Learn
     packageName: Blackboard.Learn
@@ -161,11 +227,13 @@ languages:
     httpClient: HttpClient
     models: System.Text.Json
     formatter: dotnet-format
+    validation: true
   go:
     module: "github.com/blackboard/learn-go"
     minVersion: "1.24"
     httpClient: net/http
     formatter: gofmt
+    validation: true
   ruby:
     gemName: blackboard_learn
     moduleName: BlackboardLearn

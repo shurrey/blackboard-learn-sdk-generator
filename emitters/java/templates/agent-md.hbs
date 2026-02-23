@@ -1,0 +1,141 @@
+# AGENT.md - Coding Assistant Guide
+
+> This file provides context for AI coding assistants working with the {{metadata.name}} Java SDK.
+
+## Overview
+
+This is the official Java SDK for the Blackboard Learn REST API. It provides typed methods for all API endpoints with built-in OAuth 2.0 authentication, pagination, retry logic, and error handling.
+
+**Version:** {{metadata.version}}
+**Runtime:** JDK 21+
+**Build:** Maven
+**Group:** `{{langConfig.groupId}}`
+**Artifact:** `{{langConfig.artifactId}}`
+
+## Installation
+
+Add to your `pom.xml`:
+
+```xml
+<dependency>
+  <groupId>{{langConfig.groupId}}</groupId>
+  <artifactId>{{langConfig.artifactId}}</artifactId>
+  <version>{{metadata.version}}</version>
+</dependency>
+```
+
+## Quick Start
+
+```java
+import {{langConfig.groupId}}.learn.Client;
+
+var client = Client.builder()
+    .domain("your-institution.blackboard.com")
+    .clientId(System.getenv("BB_CLIENT_ID"))
+    .clientSecret(System.getenv("BB_CLIENT_SECRET"))
+    .build();
+
+// List courses
+var courses = client.courses().list();
+
+// Get a specific course
+var course = client.courses().get("_123_1");
+```
+
+## Authentication
+
+The SDK supports two OAuth 2.0 flows:
+
+1. **Two-legged (Client Credentials)** - for server-to-server integration
+2. **Three-legged (Authorization Code + PKCE)** - for user-context operations
+
+Token management is automatic. See [docs/authentication.md](docs/authentication.md) for details.
+
+## Architecture
+
+### Client Structure
+
+The client exposes resources as accessor methods:
+
+```java
+client.courses()              // CoursesResource
+client.courses().contents()   // ContentsResource
+client.courses().users()      // UsersResource
+client.users()                // UsersResource (top-level)
+```
+
+### Error Handling
+
+```java
+import {{langConfig.groupId}}.learn.errors.APIError;
+import {{langConfig.groupId}}.learn.errors.NotFoundError;
+
+try {
+    client.courses().get("invalid");
+} catch (NotFoundError e) {
+    // Handle 404
+} catch (APIError e) {
+    System.err.println(e.getStatus() + " " + e.getMessage());
+}
+```
+
+### Pagination
+
+List methods return an `Iterator`:
+
+```java
+for (var course : client.courses().list()) {
+    System.out.println(course.getName());
+}
+```
+
+### ID Formats
+
+Blackboard supports multiple ID formats:
+- Primary ID: `_123_1`
+- External ID: `externalId:COURSE-101`
+- Username: `userName:jdoe`
+- UUID: `uuid:abc-def-123`
+
+## Available Resources
+
+{{#each topLevelResources}}
+- **{{PascalCase name}}** - `client.{{camelCase name}}()`{{#each methods}} | `{{name}}`{{/each}}
+{{#each subresources}}
+  - **{{PascalCase name}}** - `client.{{camelCase ../name}}().{{camelCase name}}()`{{#each methods}} | `{{name}}`{{/each}}
+{{/each}}
+{{/each}}
+
+## Project Structure
+
+```
+src/main/java/{{langConfig.groupId}}.learn/
+  Client.java            # Main client class
+  HttpClient.java        # HTTP layer with retry logic
+  OAuth2Client.java      # OAuth 2.0 implementation
+  PaginatedIterator.java # Pagination iterator
+  errors/                # Error class hierarchy
+  resources/             # One file per API resource
+  types/                 # Data model classes
+src/test/java/           # Unit tests (JUnit 5)
+docs/                    # API documentation per resource
+```
+
+## Key Patterns
+
+- Uses `java.net.http.HttpClient` (no external HTTP dependency)
+- Jackson for JSON serialization/deserialization
+- Builder pattern for client construction
+- Methods throw checked `APIError` exceptions
+- Path parameters are passed as method arguments
+- Query parameters use builder or optional parameter objects
+
+## Documentation
+
+- [Authentication Guide](docs/authentication.md)
+{{#each topLevelResources}}
+- [{{PascalCase name}}](docs/{{name}}.md)
+{{#each subresources}}
+- [{{PascalCase name}}](docs/{{name}}.md)
+{{/each}}
+{{/each}}

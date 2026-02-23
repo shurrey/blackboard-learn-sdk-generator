@@ -10,8 +10,9 @@
 
 import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, join } from 'node:path';
 import yaml from 'js-yaml';
+import { computeDiff, hasDiffChanges, formatDiffMarkdown } from '../spec/diff.js';
 
 const rootDir = resolve(import.meta.dirname, '..');
 
@@ -98,6 +99,38 @@ for (const [key, label] of Object.entries(prefixLabels)) {
     }
     lines.push('');
   }
+}
+
+// Attempt to add an API Changes section by diffing vendored spec against previous version
+const vendoredSpecPath = join(rootDir, 'spec', 'vendored', 'learn-swagger.json');
+try {
+  if (existsSync(vendoredSpecPath)) {
+    const currentSpec = JSON.parse(readFileSync(vendoredSpecPath, 'utf-8'));
+
+    // Try to load the previous vendored spec from the last tag, or HEAD~1
+    const gitRef = lastTag ?? 'HEAD~1';
+    let previousSpec: any = null;
+    try {
+      const previousRaw = execSync(
+        `git show ${gitRef}:spec/vendored/learn-swagger.json`,
+        { cwd: rootDir, encoding: 'utf-8' },
+      );
+      previousSpec = JSON.parse(previousRaw);
+    } catch {
+      // File didn't exist at that ref — skip
+    }
+
+    if (previousSpec) {
+      const diff = computeDiff(previousSpec, currentSpec);
+      if (hasDiffChanges(diff)) {
+        lines.push('### API Changes', '');
+        lines.push(formatDiffMarkdown(diff));
+        lines.push('');
+      }
+    }
+  }
+} catch {
+  // Non-fatal — skip API changes section if anything goes wrong
 }
 
 const newSection = lines.join('\n');

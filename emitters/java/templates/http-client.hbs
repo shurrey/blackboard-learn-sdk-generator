@@ -13,6 +13,8 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.logging.Logger;
+import java.util.logging.Level;
 
 /**
  * HTTP client with retry, rate limiting, and error handling.
@@ -21,22 +23,30 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class HttpClient {
 
+    private static final Logger LOGGER = Logger.getLogger(HttpClient.class.getName());
+
     private final String baseUrl;
     private final int timeout;
     private final int maxRetries;
     private final OAuth2Client authClient;
     private final java.net.http.HttpClient httpClient;
     private final ObjectMapper mapper;
+    private final String logLevel;
 
     private static final Set<Integer> RETRY_STATUS_CODES = Set.of(429, 500, 502, 503, 504);
     private static final long INITIAL_RETRY_DELAY = 500L;
     private static final long MAX_RETRY_DELAY = 30000L;
 
     public HttpClient(String baseUrl, int timeout, int maxRetries, OAuth2Client authClient) {
+        this(baseUrl, timeout, maxRetries, authClient, "none");
+    }
+
+    public HttpClient(String baseUrl, int timeout, int maxRetries, OAuth2Client authClient, String logLevel) {
         this.baseUrl = baseUrl.replaceAll("/$", "");
         this.timeout = timeout;
         this.maxRetries = maxRetries;
         this.authClient = authClient;
+        this.logLevel = logLevel != null ? logLevel : "none";
         this.httpClient = java.net.http.HttpClient.newBuilder()
             .connectTimeout(Duration.ofMillis(timeout))
             .build();
@@ -76,6 +86,95 @@ public class HttpClient {
         return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
     }
 
+    /**
+     * Upload a file using multipart/form-data.
+     */
+    public <T> T uploadFile(String path, Map<String, String> pathParams, String fieldName,
+                             String filename, byte[] fileData, String contentType, Class<T> responseType) {
+        String url = buildUrl(path, pathParams);
+        try {
+            String token = authClient.getToken();
+            String boundary = "----Boundary" + System.currentTimeMillis();
+            byte[] multipartBody = buildMultipartBody(boundary, fieldName, filename, fileData, contentType);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Authorization", "Bearer " + token)
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .timeout(Duration.ofMillis(timeout))
+                .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody))
+                .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                if (response.statusCode() == 204 || responseType == Void.class) return null;
+                return mapper.readValue(response.body(), responseType);
+            }
+            throw APIError.fromResponse(response.statusCode(), response.body(), null);
+        } catch (APIError e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Upload failed", e);
+        }
+    }
+
+    /**
+     * Download a file as raw bytes.
+     */
+    public FileDownload downloadFile(String path, Map<String, String> pathParams) {
+        String url = buildUrl(path, pathParams);
+        try {
+            String token = authClient.getToken();
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Authorization", "Bearer " + token)
+                .timeout(Duration.ofMillis(timeout))
+                .GET()
+                .build();
+
+            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                String respContentType = response.headers().firstValue("Content-Type").orElse("application/octet-stream");
+                String disposition = response.headers().firstValue("Content-Disposition").orElse("");
+                String filename = null;
+                if (disposition.contains("filename=")) {
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("filename=\"?([^\";\n]+)\"?").matcher(disposition);
+                    if (m.find()) filename = m.group(1);
+                }
+                return new FileDownload(response.body(), respContentType, filename);
+            }
+            throw APIError.fromResponse(response.statusCode(), new String(response.body(), StandardCharsets.UTF_8), null);
+        } catch (APIError e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Download failed", e);
+        }
+    }
+
+    /**
+     * Represents a downloaded file.
+     */
+    public record FileDownload(byte[] data, String contentType, String filename) {}
+
+    private byte[] buildMultipartBody(String boundary, String fieldName, String filename,
+                                       byte[] fileData, String contentType) {
+        try {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            String header = "--" + boundary + "\r\n"
+                + "Content-Disposition: form-data; name=\"" + fieldName + "\"; filename=\"" + filename + "\"\r\n"
+                + "Content-Type: " + contentType + "\r\n\r\n";
+            out.write(header.getBytes(StandardCharsets.UTF_8));
+            out.write(fileData);
+            String footer = "\r\n--" + boundary + "--\r\n";
+            out.write(footer.getBytes(StandardCharsets.UTF_8));
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to build multipart body", e);
+        }
+    }
+
     private <T> T request(String method, String path, Map<String, String> pathParams, Object body, Class<T> responseType) {
         String url = buildUrl(path, pathParams);
 
@@ -101,6 +200,14 @@ public class HttpClient {
                     builder.build(),
                     HttpResponse.BodyHandlers.ofString()
                 );
+
+                if (!"none".equals(logLevel)) {
+                    LOGGER.info("[BlackboardSDK] " + method + " " + url + " → " + response.statusCode());
+                    if ("verbose".equals(logLevel)) {
+                        LOGGER.fine("[BlackboardSDK] Response Headers: " + response.headers().map());
+                        LOGGER.fine("[BlackboardSDK] Response Body: " + response.body());
+                    }
+                }
 
                 if (response.statusCode() >= 200 && response.statusCode() < 300) {
                     if (response.statusCode() == 204 || responseType == Void.class) {

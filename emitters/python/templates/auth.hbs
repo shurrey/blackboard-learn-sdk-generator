@@ -54,6 +54,29 @@ class OAuth2Client:
         self._lock = threading.Lock()
         self._http = httpx.Client(timeout=httpx.Timeout(30.0))
 
+    # ── Token status / revocation ────────────────────────────────────────────
+
+    def revoke_token(self) -> None:
+        """Revoke the current access token by clearing local state.
+
+        Note:
+            Blackboard Learn does not expose an RFC 7009 revocation endpoint,
+            so this only clears the locally cached token and expiry.
+        """
+        with self._lock:
+            self._access_token = None
+            self._token_expiry = 0.0
+
+    @property
+    def is_authenticated(self) -> bool:
+        """Check whether a valid (non-expired) access token is available.
+
+        Returns:
+            ``True`` if an access token exists and is not within 60 seconds
+            of its expiry time.
+        """
+        return self._access_token is not None and time.time() < self._token_expiry - 60
+
     # ── Two-legged (client_credentials) ──────────────────────────────────────
 
     def get_token(self) -> str:

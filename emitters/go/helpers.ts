@@ -56,6 +56,12 @@ export function registerGoHelpers(handlebars: typeof import('handlebars')): void
   handlebars.registerHelper('goType', (type: TypeRef) => typeRefToGo(type));
   handlebars.registerHelper('goPointerType', (type: TypeRef) => typeRefToGoPointer(type));
   handlebars.registerHelper('goTag', (name: string) => `\`json:"${name},omitempty"\``);
+  handlebars.registerHelper('goTagWithValidation', (name: string, required: boolean, validation: boolean) => {
+    if (validation && required) {
+      return `\`json:"${name},omitempty" validate:"required"\``;
+    }
+    return `\`json:"${name},omitempty"\``;
+  });
   handlebars.registerHelper('goMethodParams', function (this: any, method: any) {
     const parts: string[] = ['ctx context.Context'];
     for (const param of method.pathParams ?? []) {

@@ -21,6 +21,8 @@ from blackboard_learn_mcp.tools.grades import register_grade_tools
 from blackboard_learn_mcp.tools.enrollments import register_enrollment_tools
 from blackboard_learn_mcp.tools.announcements import register_announcement_tools
 from blackboard_learn_mcp.tools.dynamic import register_dynamic_tools
+from blackboard_learn_mcp.resources import register_resources
+from blackboard_learn_mcp.prompts import register_prompts
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +186,41 @@ def _register_oauth_tools():
                 ),
             }
 
-    logger.info("OAuth tools registered (learn_auth_get_login_url, learn_auth_exchange_code, learn_auth_status)")
+    @mcp.tool()
+    def learn_auth_logout() -> dict:
+        """Log out and clear all cached authentication tokens.
+
+        Revokes locally cached tokens for both client_credentials and
+        three-legged OAuth sessions. Note: Blackboard Learn does not expose
+        an RFC 7009 revocation endpoint, so this only clears local state.
+
+        Returns:
+            Dictionary confirming that all tokens have been cleared.
+        """
+        global _client, _oauth_client
+
+        if _oauth_client is not None:
+            try:
+                _oauth_client.revoke_token()
+            except Exception:
+                pass
+            _oauth_client = None
+
+        if _client is not None:
+            try:
+                _client.revoke_token()
+            except Exception:
+                pass
+            _client = None
+
+        logger.info("All cached authentication tokens cleared")
+
+        return {
+            "status": "logged_out",
+            "message": "All tokens cleared.",
+        }
+
+    logger.info("OAuth tools registered (learn_auth_get_login_url, learn_auth_exchange_code, learn_auth_status, learn_auth_logout)")
 
 
 # ── Tool registration ────────────────────────────────────────────────────────
@@ -197,6 +233,10 @@ register_grade_tools(mcp, get_client)
 register_enrollment_tools(mcp, get_client)
 register_announcement_tools(mcp, get_client)
 register_dynamic_tools(mcp, get_client)
+
+# Register MCP resources and prompts
+register_resources(mcp, get_client)
+register_prompts(mcp)
 
 # Register OAuth tools if in OAuth mode
 if _is_oauth_mode():
