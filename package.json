@@ -1,7 +1,7 @@
 {
-  "name": "blackboard-learn-sdk-generator",
+  "name": "blackboard-lms-sdk-generator",
   "version": "1.0.0",
-  "description": "Code generator for Blackboard Learn REST API SDKs",
+  "description": "Code generator for Blackboard LMS REST API SDKs",
   "type": "module",
   "engines": {
     "node": ">=20.0.0"

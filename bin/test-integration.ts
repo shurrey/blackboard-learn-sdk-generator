@@ -45,7 +45,7 @@ interface TestCommand {
 }
 
 function getTestCommand(t: Target): TestCommand | null {
-  const sdkDir = join(outputDir, `blackboard-learn-${t}`);
+  const sdkDir = join(outputDir, `blackboard-lms-${t}`);
 
   if (!existsSync(sdkDir)) {
     console.warn(`  SDK not found at ${sdkDir} — run generate first`);

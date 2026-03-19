@@ -1,4 +1,4 @@
-"""Shared test fixtures for the Blackboard Learn SDK."""
+"""Shared test fixtures for the Blackboard LMS SDK."""
 
 from unittest.mock import AsyncMock, MagicMock
 

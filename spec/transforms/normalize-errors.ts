@@ -7,7 +7,7 @@ const ERROR_CODES = ['400', '401', '403', '404', '429', '500', '502', '503', '50
 
 const REST_EXCEPTION_SCHEMA = {
   type: 'object' as const,
-  description: 'Blackboard Learn REST API error response.',
+  description: 'Blackboard LMS REST API error response.',
   properties: {
     status: { type: 'integer' as const, description: 'HTTP status code' },
     message: { type: 'string' as const, description: 'Human-readable error message' },

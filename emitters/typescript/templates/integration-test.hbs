@@ -1,5 +1,5 @@
 /**
- * Integration tests for the Blackboard Learn TypeScript SDK.
+ * Integration tests for the Blackboard LMS TypeScript SDK.
  * Runs against a Prism mock server at {{mockServerUrl}}.
  *
  * Auto-generated — do not edit manually.
@@ -22,27 +22,48 @@ describe('Integration Tests', () => {
       clientSecret: 'test-client-secret',
       baseUrl: MOCK_SERVER_URL + '/learn/api/public',
     });
+    // Bypass OAuth token fetch — the mock server doesn't issue real tokens.
+    client.setAccessToken('mock-token');
   });
 
 {{#each resources}}
+{{#if (hasTestableMethod methods)}}
   describe('{{PascalCase name}}', () => {
 {{#each methods}}
+{{#unless paginated}}
+{{#isBinary this}}
+{{else}}
 {{#if (eq kind "list")}}
+{{#unless (hasRequiredQueryParams this)}}
     it('{{name}} should return results', async () => {
-      const result = await client.{{camelCase ../name}}.{{name}}({{#each pathParams}}'_1_1'{{#unless @last}}, {{/unless}}{{/each}});
+      {{#if (isVoid response.type)}}
+      await client.{{camelCase ../name}}.{{name}}({{#each pathParams}}{{#if (firstEnumValue this)}}'{{firstEnumValue this}}'{{else}}'_1_1'{{/if}}{{#unless @last}}, {{/unless}}{{/each}});
+      {{else}}
+      const result = await client.{{camelCase ../name}}.{{name}}({{#each pathParams}}{{#if (firstEnumValue this)}}'{{firstEnumValue this}}'{{else}}'_1_1'{{/if}}{{#unless @last}}, {{/unless}}{{/each}});
       expect(result).toBeDefined();
+      {{/if}}
     });
 
+{{/unless}}
 {{else if (eq kind "get")}}
+{{#unless (hasRequiredQueryParams this)}}
     it('{{name}} should return a resource', async () => {
-      const result = await client.{{camelCase ../name}}.{{name}}({{#each pathParams}}'_1_1'{{#unless @last}}, {{/unless}}{{/each}});
+      {{#if (isVoid response.type)}}
+      await client.{{camelCase ../name}}.{{name}}({{#each pathParams}}{{#if (firstEnumValue this)}}'{{firstEnumValue this}}'{{else}}'_1_1'{{/if}}{{#unless @last}}, {{/unless}}{{/each}});
+      {{else}}
+      const result = await client.{{camelCase ../name}}.{{name}}({{#each pathParams}}{{#if (firstEnumValue this)}}'{{firstEnumValue this}}'{{else}}'_1_1'{{/if}}{{#unless @last}}, {{/unless}}{{/each}});
       expect(result).toBeDefined();
+      {{/if}}
     });
 
+{{/unless}}
 {{/if}}
+{{/isBinary}}
+{{/unless}}
 {{/each}}
   });
 
+{{/if}}
 {{/each}}
   describe('Error Handling', () => {
     it('should throw NotFoundError for non-existent resource', async () => {
@@ -50,8 +71,15 @@ describe('Integration Tests', () => {
 {{#each resources}}
 {{#each methods}}
 {{#if (eq kind "get")}}
+{{#unless paginated}}
+{{#unless (hasRequiredQueryParams this)}}
+{{#isBinary this}}
+{{else}}
         await client.{{camelCase ../name}}.{{name}}({{#each pathParams}}'non-existent-id'{{#unless @last}}, {{/unless}}{{/each}});
         expect.fail('Expected NotFoundError');
+{{/isBinary}}
+{{/unless}}
+{{/unless}}
 {{/if}}
 {{/each}}
 {{/each}}

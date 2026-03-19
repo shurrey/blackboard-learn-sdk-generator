@@ -51,7 +51,8 @@ public class HttpClient {
             .connectTimeout(Duration.ofMillis(timeout))
             .build();
         this.mapper = new ObjectMapper()
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+            .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
     }
 
     public <T> T get(String path, Map<String, String> pathParams, Class<T> responseType) {

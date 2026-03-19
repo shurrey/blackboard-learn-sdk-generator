@@ -12,6 +12,7 @@
 import { execSync } from 'node:child_process';
 import { resolve, join } from 'node:path';
 import { existsSync } from 'node:fs';
+import { MockServer } from '../testing/mock-server.js';
 
 const VALID_TARGETS = ['all', 'typescript', 'python', 'java', 'csharp', 'go', 'ruby'] as const;
 type Target = typeof VALID_TARGETS[number];
@@ -82,8 +83,31 @@ function getTestConfig(t: Target): SDKTestConfig | null {
 async function main() {
   const results: { target: string; passed: boolean; error?: string }[] = [];
 
+  // Start Prism mock server for integration tests
+  const specPath = resolve(rootDir, 'spec/cache/openapi3.json');
+  let server: MockServer | null = null;
+  let mockServerUrl = '';
+
+  if (existsSync(specPath)) {
+    server = new MockServer({ specPath, verbose: false });
+    try {
+      console.log('Starting Prism mock server...');
+      await server.start();
+      mockServerUrl = server.baseUrl;
+      console.log(`Mock server running at ${mockServerUrl}\n`);
+    } catch (err: any) {
+      console.warn(`Could not start mock server: ${err.message}`);
+      console.warn('Integration tests will fail — install @stoplight/prism-cli or run unit tests only.\n');
+      server = null;
+    }
+  } else {
+    console.warn('No cached OpenAPI spec found — run generate first to enable integration tests.\n');
+  }
+
+  try {
+
   for (const t of targets) {
-    const sdkDir = join(outputDir, `blackboard-learn-${t}`);
+    const sdkDir = join(outputDir, `blackboard-lms-${t}`);
 
     if (!existsSync(sdkDir)) {
       console.warn(`SDK not found at ${sdkDir} — run "npm run generate -- ${t}" first`);
@@ -100,13 +124,18 @@ async function main() {
     console.log(`\n=== ${config.name} ===`);
     console.log(`  Directory: ${sdkDir}`);
 
+    const testEnv = {
+      ...process.env,
+      ...(mockServerUrl ? { MOCK_SERVER_URL: mockServerUrl } : {}),
+    };
+
     try {
       // Install dependencies
       console.log(`  Installing dependencies: ${config.installCommand}`);
       execSync(config.installCommand, {
         cwd: sdkDir,
         stdio: 'pipe',
-        env: process.env,
+        env: testEnv,
       });
 
       // Run tests
@@ -114,7 +143,7 @@ async function main() {
       const output = execSync(config.testCommand, {
         cwd: sdkDir,
         stdio: 'pipe',
-        env: process.env,
+        env: testEnv,
         encoding: 'utf-8',
       });
 
@@ -143,6 +172,14 @@ async function main() {
 
   if (failed > 0) {
     process.exit(1);
+  }
+
+  } finally {
+    // Stop mock server
+    if (server) {
+      console.log('Stopping mock server...');
+      await server.stop();
+    }
   }
 }
 

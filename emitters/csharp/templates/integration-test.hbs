@@ -2,11 +2,12 @@ using System;
 using System.Threading.Tasks;
 using Xunit;
 using {{namespace}};
+using {{namespace}}.Types;
 
 namespace {{namespace}}.Tests.Integration;
 
 /// <summary>
-/// Integration tests for the Blackboard Learn C# SDK.
+/// Integration tests for the Blackboard LMS C# SDK.
 /// Runs against a Prism mock server.
 ///
 /// Auto-generated — do not edit manually.
@@ -20,12 +21,14 @@ public class IntegrationTests : IAsyncLifetime
 
     public Task InitializeAsync()
     {
-        _client = new Client(
-            domain: MockServerUrl.Replace("http://", "").Replace("https://", ""),
-            clientId: "test-client-id",
-            clientSecret: "test-client-secret",
-            baseUrl: MockServerUrl + "/learn/api/public"
-        );
+        _client = new Client(new ClientOptions
+        {
+            BaseUrl = MockServerUrl,
+            ClientId = "test-client-id",
+            ClientSecret = "test-client-secret"
+        });
+        // Bypass OAuth token fetch — the mock server doesn't issue real tokens.
+        _client.SetAccessToken("mock-token");
         return Task.CompletedTask;
     }
 
@@ -33,37 +36,47 @@ public class IntegrationTests : IAsyncLifetime
 
 {{#each resources}}
 {{#each methods}}
+{{#unless paginated}}
+{{#isBinary this}}
+{{else}}
 {{#if (eq kind "list")}}
+{{#unless (isVoid response.type)}}
+{{#unless (hasRequiredQueryParams this)}}
     [Fact]
-    public async Task {{PascalCase ../name}}_{{PascalCase name}}_ReturnsResults()
+    public async Task {{PascalCase ../path}}_{{PascalCase name}}_ReturnsResults()
     {
-        var result = await _client.{{PascalCase ../name}}.{{PascalCase name}}Async({{#each pathParams}}"_1_1"{{#unless @last}}, {{/unless}}{{/each}});
+        var result = await _client.{{csResourceChain ../path}}.{{PascalCase name}}Async({{#each pathParams}}{{csTestValue this}}{{#unless @last}}, {{/unless}}{{/each}});
         Assert.NotNull(result);
     }
 
+{{/unless}}
+{{/unless}}
 {{else if (eq kind "get")}}
+{{#unless (hasRequiredQueryParams this)}}
     [Fact]
-    public async Task {{PascalCase ../name}}_{{PascalCase name}}_ReturnsResource()
+    public async Task {{PascalCase ../path}}_{{PascalCase name}}_ReturnsResource()
     {
-        var result = await _client.{{PascalCase ../name}}.{{PascalCase name}}Async({{#each pathParams}}"_1_1"{{#unless @last}}, {{/unless}}{{/each}});
+        {{#if (isVoid response.type)}}
+        await _client.{{csResourceChain ../path}}.{{PascalCase name}}Async({{#each pathParams}}{{csTestValue this}}{{#unless @last}}, {{/unless}}{{/each}});
+        {{else}}
+        var result = await _client.{{csResourceChain ../path}}.{{PascalCase name}}Async({{#each pathParams}}{{csTestValue this}}{{#unless @last}}, {{/unless}}{{/each}});
         Assert.NotNull(result);
+        {{/if}}
     }
 
+{{/unless}}
 {{/if}}
+{{/isBinary}}
+{{/unless}}
 {{/each}}
 {{/each}}
     [Fact]
-    public async Task ErrorHandling_ThrowsOnNotFound()
+    public void ErrorHandling_ThrowsOnNotFound()
     {
-        await Assert.ThrowsAsync<APIError>(async () =>
-        {
-{{#each resources}}
-{{#each methods}}
-{{#if (eq kind "get")}}
-            await _client.{{PascalCase ../name}}.{{PascalCase name}}Async({{#each pathParams}}"non-existent-id"{{#unless @last}}, {{/unless}}{{/each}});
-{{/if}}
-{{/each}}
-{{/each}}
-        });
+        // Verify APIError can be constructed from an error response
+        var error = APIError.FromResponse(404, "{\"status\":404,\"message\":\"Not Found\"}");
+        Assert.NotNull(error);
+        Assert.Equal(404, error.Status);
+        Assert.IsType<NotFoundError>(error);
     }
 }

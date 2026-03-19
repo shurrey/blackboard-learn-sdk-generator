@@ -1,6 +1,6 @@
-# Contributing to Blackboard Learn SDK Generator
+# Contributing to Blackboard LMS SDK Generator
 
-Thank you for your interest in improving the Blackboard Learn SDK Generator!
+Thank you for your interest in improving the Blackboard LMS SDK Generator!
 
 ## How This Project Works
 

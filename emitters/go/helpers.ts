@@ -3,7 +3,7 @@
  */
 
 import type { TypeRef, Parameter } from '../../ir/types.js';
-import { camelCase } from '../shared/case-utils.js';
+import { camelCase, pascalCase } from '../shared/case-utils.js';
 
 export function typeRefToGo(type: TypeRef): string {
   switch (type.kind) {
@@ -52,8 +52,18 @@ export function typeRefToGoPointer(type: TypeRef): string {
   return goType;
 }
 
+/**
+ * Convert a dot-separated resource path to a Go field accessor chain.
+ * E.g., "courses.contents.children" -> "Courses.Contents.Children"
+ */
+function resourceChainGo(path: string): string {
+  if (!path) return '';
+  return path.split('.').map(s => pascalCase(s)).join('.');
+}
+
 export function registerGoHelpers(handlebars: typeof import('handlebars')): void {
   handlebars.registerHelper('goType', (type: TypeRef) => typeRefToGo(type));
+  handlebars.registerHelper('goResourceChain', (path: string) => resourceChainGo(path));
   handlebars.registerHelper('goPointerType', (type: TypeRef) => typeRefToGoPointer(type));
   handlebars.registerHelper('goTag', (name: string) => `\`json:"${name},omitempty"\``);
   handlebars.registerHelper('goTagWithValidation', (name: string, required: boolean, validation: boolean) => {
@@ -72,11 +82,60 @@ export function registerGoHelpers(handlebars: typeof import('handlebars')): void
     }
     return parts.join(', ');
   });
+  handlebars.registerHelper('goPathParamValue', (param: any) => {
+    const varName = camelCase(param.name);
+    if (param.type?.kind === 'enum') {
+      return `string(${varName})`;
+    }
+    if (param.type?.kind === 'primitive' && param.type?.type !== 'string') {
+      return `fmt.Sprintf("%v", ${varName})`;
+    }
+    return varName;
+  });
   handlebars.registerHelper('goTestValue', (param: any) => {
+    if (param.type?.kind === 'enum' && param.type.values?.length > 0) {
+      return `${param.type.name}("${param.type.values[0]}")`;
+    }
     if (param.type?.kind === 'enum') {
       return `${param.type.name}("test-id")`;
     }
     return `"test-id"`;
+  });
+  // Like goTestValue but with lms. prefix for use in integration tests (package lms_test)
+  handlebars.registerHelper('goIntegrationTestValue', (param: any) => {
+    if (param.type?.kind === 'enum' && param.type.values?.length > 0) {
+      return `lms.${param.type.name}("${param.type.values[0]}")`;
+    }
+    if (param.type?.kind === 'enum') {
+      return `lms.${param.type.name}("test-id")`;
+    }
+    return `"test-id"`;
+  });
+  // Import-checking helpers for conditional imports in resource.hbs
+  handlebars.registerHelper('goNeedsContext', (resource: any) => {
+    return (resource.methods ?? []).length > 0;
+  });
+  handlebars.registerHelper('goNeedsFmt', (resource: any) => {
+    for (const method of resource.methods ?? []) {
+      if (method.requestBody?.binary || method.response?.binary) continue;
+      if (method.paginated) continue;
+      for (const param of method.pathParams ?? []) {
+        if (param.type?.kind === 'primitive' && param.type?.type !== 'string') {
+          return true;
+        }
+      }
+    }
+    return false;
+  });
+  handlebars.registerHelper('goNeedsIter', (resource: any) => {
+    for (const method of resource.methods ?? []) {
+      if (method.paginated) return true;
+    }
+    return false;
+  });
+  handlebars.registerHelper('goNeedsTestContext', function (this: any, resource: any, options: any) {
+    const hasNonPaginatedMethod = (resource.methods ?? []).some((m: any) => !m.paginated);
+    return hasNonPaginatedMethod ? options.fn(this) : options.inverse(this);
   });
   handlebars.registerHelper('goReturnType', (method: any) => {
     if (method.paginated && method.paginationConfig) {

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Moq;
@@ -27,6 +28,20 @@ public class {{PascalCase resource.name}}ResourceTests
     [Fact]
     public async Task {{PascalCase name}}Async_SendsCorrectRequest()
     {
+        {{#isUpload this}}
+        _mockClient
+            .Setup(c => c.UploadFileAsync<{{#if (isVoid response.type)}}object{{else}}{{csType response.type}}{{/if}}>(It.IsAny<string>(), It.IsAny<Dictionary<string, string>>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(default({{#if (isVoid response.type)}}object{{else}}{{csType response.type}}{{/if}}));
+        await _resource.{{PascalCase name}}Async<{{#if (isVoid response.type)}}object{{else}}{{csType response.type}}{{/if}}>({{#each pathParams}}{{csTestValue this}}, {{/each}}Stream.Null, "test.txt");
+        _mockClient.Verify(c => c.UploadFileAsync<{{#if (isVoid response.type)}}object{{else}}{{csType response.type}}{{/if}}>(It.IsAny<string>(), It.IsAny<Dictionary<string, string>>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+        {{else}}
+        {{#isDownload this}}
+        _mockClient
+            .Setup(c => c.DownloadFileAsync(It.IsAny<string>(), It.IsAny<Dictionary<string, string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LearnHttpClient.FileDownload(Array.Empty<byte>(), "application/octet-stream", null));
+        await _resource.{{PascalCase name}}Async({{#each pathParams}}{{csTestValue this}}{{#unless @last}}, {{/unless}}{{/each}});
+        _mockClient.Verify(c => c.DownloadFileAsync(It.IsAny<string>(), It.IsAny<Dictionary<string, string>>(), It.IsAny<CancellationToken>()), Times.Once);
+        {{else}}
         {{#if (eq (lowercase httpMethod) "delete")}}
         _mockClient
             .Setup(c => c.DeleteAsync(It.IsAny<string>(), It.IsAny<Dictionary<string, string>>(), It.IsAny<CancellationToken>()))
@@ -58,6 +73,8 @@ public class {{PascalCase resource.name}}ResourceTests
         await _resource.{{PascalCase name}}Async({{#each pathParams}}{{csTestValue this}}{{#unless @last}}, {{/unless}}{{/each}}{{#ifHasBody this}}{{#if pathParams}}, {{/if}}null{{/ifHasBody}});
         _mockClient.Verify(c => c.PatchAsync<{{#if (isVoid response.type)}}object{{else}}{{csType response.type}}{{/if}}>(It.IsAny<string>(), It.IsAny<Dictionary<string, string>>(), It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
         {{/if}}
+        {{/isDownload}}
+        {{/isUpload}}
     }
     {{/unless}}
 

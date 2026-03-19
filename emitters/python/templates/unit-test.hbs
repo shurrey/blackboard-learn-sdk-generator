@@ -2,7 +2,7 @@
 
 from unittest.mock import AsyncMock, MagicMock
 import pytest
-from blackboard_learn.resources.{{snakeCase resource.name}} import {{PascalCase resource.name}}Resource
+from blackboard_lms.resources.{{snakeCase resource.name}} import {{PascalCase resource.name}}Resource
 
 
 @pytest.fixture
@@ -13,6 +13,8 @@ def mock_client():
     client.put = AsyncMock(return_value={})
     client.patch = AsyncMock(return_value={})
     client.delete = AsyncMock(return_value=None)
+    client.download_file = AsyncMock(return_value=b"")
+    client.upload_file = AsyncMock(return_value={})
     return client
 
 
@@ -29,6 +31,14 @@ def test_can_be_instantiated(resource):
 {{#unless paginated}}
 class Test{{PascalCase name}}:
     async def test_sends_correct_request(self, resource, mock_client):
+        {{#isUpload this}}
+        await resource.{{snakeCase name}}({{#each pathParams}}"test-id", {{/each}}file=b"test", field_name="file")
+        mock_client.upload_file.assert_called_once()
+        {{else}}
+        {{#isDownload this}}
+        await resource.{{snakeCase name}}({{#each pathParams}}"test-id"{{#unless @last}}, {{/unless}}{{/each}})
+        mock_client.download_file.assert_called_once()
+        {{else}}
         {{#if (eq (lowercase httpMethod) "get")}}
         await resource.{{snakeCase name}}({{#each pathParams}}"test-id", {{/each}}{{#each queryParams}}{{#if required}}"test-value", {{/if}}{{/each}})
         mock_client.get.assert_called_once()
@@ -45,6 +55,8 @@ class Test{{PascalCase name}}:
         await resource.{{snakeCase name}}({{#each pathParams}}"test-id", {{/each}}{{#each queryParams}}{{#if required}}"test-value", {{/if}}{{/each}})
         mock_client.delete.assert_called_once()
         {{/if}}
+        {{/isDownload}}
+        {{/isUpload}}
 
 {{/unless}}
 {{/each}}

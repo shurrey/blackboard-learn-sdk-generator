@@ -4,7 +4,7 @@
 
 ## Overview
 
-This is a Model Context Protocol (MCP) server that exposes the Blackboard Learn REST API as tools for AI agents. Unlike the language-specific SDKs, this MCP server provides a curated set of high-level tools optimized for agent workflows rather than a 1-to-1 API mapping.
+This is a Model Context Protocol (MCP) server that exposes the Blackboard LMS REST API as tools for AI agents. Unlike the language-specific SDKs, this MCP server provides a curated set of high-level tools optimized for agent workflows rather than a 1-to-1 API mapping.
 
 **Version:** {{metadata.version}}
 **Runtime:** Python 3.12+
@@ -31,13 +31,13 @@ export BB_CLIENT_SECRET=your-client-secret
 ### stdio transport (for IDE integrations)
 
 ```bash
-python -m blackboard_learn_mcp
+python -m blackboard_lms_mcp
 ```
 
 ### HTTP transport
 
 ```bash
-python -m blackboard_learn_mcp --transport http --port 8080
+python -m blackboard_lms_mcp --transport http --port 8080
 ```
 
 ## Available Tools
@@ -50,11 +50,11 @@ python -m blackboard_learn_mcp --transport http --port 8080
 
 The MCP server is organized into:
 
-- **Tools** (`src/blackboard_learn_mcp/tools/`) - Tool implementations grouped by category
-- **Auth** (`src/blackboard_learn_mcp/auth/`) - OAuth 2.0 authentication
-- **Utils** (`src/blackboard_learn_mcp/utils/`) - Formatters and error handling
-- **Resources** (`src/blackboard_learn_mcp/resources.py`) - MCP resource definitions
-- **Prompts** (`src/blackboard_learn_mcp/prompts.py`) - MCP prompt templates
+- **Tools** (`src/blackboard_lms_mcp/tools/`) - Tool implementations grouped by category
+- **Auth** (`src/blackboard_lms_mcp/auth/`) - OAuth 2.0 authentication
+- **Utils** (`src/blackboard_lms_mcp/utils/`) - Formatters and error handling
+- **Resources** (`src/blackboard_lms_mcp/resources.py`) - MCP resource definitions
+- **Prompts** (`src/blackboard_lms_mcp/prompts.py`) - MCP prompt templates
 
 ## Key Patterns
 

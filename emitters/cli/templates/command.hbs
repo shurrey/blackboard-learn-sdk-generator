@@ -1,0 +1,157 @@
+package cmd
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"time"
+
+	"github.com/spf13/cobra"
+)
+
+// {{commandVarName resource}} is the parent command for {{resource.name}} operations.
+var {{commandVarName resource}} = &cobra.Command{
+	Use:   "{{kebabCase resource.name}}",
+	Short: "{{#if resource.displayName}}{{resource.displayName}}{{else}}Manage {{resource.name}}{{/if}}",
+{{#if resource.description}}
+	Long:  `{{singleLine resource.description}}`,
+{{/if}}
+}
+
+{{#each resource.methods}}
+var {{methodCmdVarName ../resource this}} = &cobra.Command{
+	Use:   "{{cobraUse this}}",
+	Short: "{{#if description}}{{shortDesc description}}{{else}}{{PascalCase name}} {{../resource.name}}{{/if}}",
+{{#if description}}
+	Long:  `{{singleLine description}}`,
+{{/if}}
+	Args:  {{cobraArgs this}},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		wrapper, err := getClient()
+		if err != nil {
+			return err
+		}
+		client := wrapper.Client
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		{{#if pathParams.length}}
+		// Bind positional arguments to path parameters
+		{{argBindings this}}
+		{{/if}}
+
+		{{#needsBody this}}
+		// Read request body from --body flag, --body-file flag, or stdin
+		bodyStr, _ := cmd.Flags().GetString("body")
+		bodyFile, _ := cmd.Flags().GetString("body-file")
+		var bodyData []byte
+		if bodyStr != "" {
+			bodyData = []byte(bodyStr)
+		} else if bodyFile != "" {
+			var readErr error
+			bodyData, readErr = os.ReadFile(bodyFile)
+			if readErr != nil {
+				return fmt.Errorf("reading body file: %w", readErr)
+			}
+		} else {
+			// Try reading from stdin if it's not a terminal
+			stat, _ := os.Stdin.Stat()
+			if (stat.Mode() & os.ModeCharDevice) == 0 {
+				var readErr error
+				bodyData, readErr = io.ReadAll(os.Stdin)
+				if readErr != nil {
+					return fmt.Errorf("reading stdin: %w", readErr)
+				}
+			}
+		}
+		if bodyData == nil {
+			return fmt.Errorf("request body required — use --body, --body-file, or pipe via stdin")
+		}
+
+		var body {{goType requestBody.type}}
+		if err := json.Unmarshal(bodyData, &body); err != nil {
+			return fmt.Errorf("invalid JSON body: %w", err)
+		}
+		{{/needsBody}}
+
+		{{#ifPaginated this}}
+		// Paginated request — iterate all pages
+		noPaginate, _ := cmd.Flags().GetBool("no-paginate")
+		limit, _ := cmd.Flags().GetInt("limit")
+		count := 0
+		var results []{{goType paginationConfig.itemType}}
+		for item, iterErr := range {{sdkAccessor ../resource}}.{{PascalCase name}}({{sdkCallArgs this}}) {
+			if iterErr != nil {
+				return iterErr
+			}
+			results = append(results, item)
+			count++
+			if noPaginate || (limit > 0 && count >= limit) {
+				break
+			}
+		}
+		return getFormatter().Print(results)
+		{{else}}
+		{{#if (isVoid response.type)}}
+		err = {{sdkAccessor ../resource}}.{{PascalCase name}}({{sdkCallArgs this}})
+		if err != nil {
+			return err
+		}
+		fmt.Println("Done.")
+		return nil
+		{{else}}
+		{{#isDownload this}}
+		download, err := {{sdkAccessor ../resource}}.{{PascalCase name}}({{sdkCallArgs this}})
+		if err != nil {
+			return err
+		}
+		outFile, _ := cmd.Flags().GetString("file")
+		if outFile == "" {
+			outFile = download.Filename
+		}
+		if outFile == "" {
+			outFile = "download"
+		}
+		if err := os.WriteFile(outFile, download.Data, 0644); err != nil {
+			return fmt.Errorf("writing file: %w", err)
+		}
+		fmt.Printf("Downloaded: %s (%d bytes)\n", outFile, len(download.Data))
+		return nil
+		{{else}}
+		result, err := {{sdkAccessor ../resource}}.{{PascalCase name}}({{sdkCallArgs this}})
+		if err != nil {
+			return err
+		}
+		return getFormatter().Print(result)
+		{{/isDownload}}
+		{{/if}}
+		{{/ifPaginated}}
+	},
+}
+
+{{/each}}
+
+func init() {
+	{{parentCmdVar}}.AddCommand({{commandVarName resource}})
+
+{{#each resource.methods}}
+	{{commandVarName ../resource}}.AddCommand({{methodCmdVarName ../resource this}})
+	{{#needsBody this}}
+	{{methodCmdVarName ../resource this}}.Flags().String("body", "", "Request body as JSON string")
+	{{methodCmdVarName ../resource this}}.Flags().String("body-file", "", "Path to a JSON file for the request body")
+	{{/needsBody}}
+	{{#ifPaginated this}}
+	{{methodCmdVarName ../resource this}}.Flags().Bool("no-paginate", false, "Return only a single page of results")
+	{{methodCmdVarName ../resource this}}.Flags().Int("limit", 0, "Maximum number of results to return (0 = unlimited)")
+	{{/ifPaginated}}
+	{{#isDownload this}}
+	{{methodCmdVarName ../resource this}}.Flags().String("file", "", "Output file path for downloads")
+	{{/isDownload}}
+	{{#each queryParams}}
+	{{methodCmdVarName ../../resource ../this}}.Flags().{{cobraFlagType this}}P("{{kebabCase name}}", "", {{cobraFlagDefault this}}, "{{#if description}}{{shortDesc description}}{{else}}{{name}}{{/if}}")
+	{{/each}}
+{{/each}}
+}

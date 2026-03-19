@@ -1,10 +1,18 @@
-package learn
+package lms
+{{#if (or (goNeedsContext resource) (goNeedsFmt resource) (goNeedsIter resource))}}
 
 import (
+{{#if (goNeedsContext resource)}}
 	"context"
+{{/if}}
+{{#if (goNeedsFmt resource)}}
 	"fmt"
+{{/if}}
+{{#if (goNeedsIter resource)}}
 	"iter"
+{{/if}}
 )
+{{/if}}
 
 // {{PascalCase resource.name}}Resource provides access to {{resource.name}} endpoints.
 type {{PascalCase resource.name}}Resource struct {
@@ -51,7 +59,7 @@ func (r *{{PascalCase ../resource.name}}Resource) {{PascalCase name}}(ctx contex
 func (r *{{PascalCase ../resource.name}}Resource) {{PascalCase name}}({{goMethodParams this}}) iter.Seq2[{{goType paginationConfig.itemType}}, error] {
 	pathParams := map[string]string{
 		{{#each pathParams}}
-		"{{name}}": {{camelCase name}},
+		"{{name}}": {{goPathParamValue this}},
 		{{/each}}
 	}
 	return Paginate[{{goType paginationConfig.itemType}}](ctx, r.client, "{{{path}}}", pathParams)
@@ -60,7 +68,7 @@ func (r *{{PascalCase ../resource.name}}Resource) {{PascalCase name}}({{goMethod
 func (r *{{PascalCase ../resource.name}}Resource) {{PascalCase name}}({{goMethodParams this}}) {{goReturnType this}} {
 	pathParams := map[string]string{
 		{{#each pathParams}}
-		"{{name}}": fmt.Sprintf("%v", {{camelCase name}}),
+		"{{name}}": {{goPathParamValue this}},
 		{{/each}}
 	}
 	{{#if (eq (lowercase httpMethod) "delete")}}

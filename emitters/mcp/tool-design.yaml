@@ -1,4 +1,4 @@
-# MCP Tool Design for Blackboard Learn
+# MCP Tool Design for Blackboard LMS
 #
 # These tool definitions are the contract between the generator and the MCP server
 # output. Each tool is carefully curated for optimal agent ergonomics:
@@ -10,7 +10,7 @@
 tools:
   - name: learn_search_courses
     description: >
-      Search for courses in Blackboard Learn by name, term, or instructor.
+      Search for courses in Blackboard LMS by name, term, or instructor.
       Use this when a user asks about finding courses, listing courses for a term,
       or looking up what courses an instructor teaches. Returns a formatted list of
       matching courses with IDs, names, term info, and enrollment counts.
@@ -59,7 +59,7 @@ tools:
 
   - name: learn_get_course_details
     description: >
-      Get comprehensive details about a specific Blackboard Learn course.
+      Get comprehensive details about a specific Blackboard LMS course.
       Use this when a user asks for information about a particular course,
       including its settings, availability, enrollment counts, and metadata.
       The course_id can be the primary numeric ID, or use externalId:{id},
@@ -93,7 +93,7 @@ tools:
 
   - name: learn_list_enrollments
     description: >
-      List users enrolled in a specific Blackboard Learn course, optionally
+      List users enrolled in a specific Blackboard LMS course, optionally
       filtered by role. Use this when a user asks "who is in this course",
       "list the students", "who are the TAs", or similar enrollment questions.
       Returns a formatted roster with names, roles, and enrollment dates.
@@ -166,7 +166,7 @@ tools:
 
   - name: learn_create_content
     description: >
-      Create a new content item in a Blackboard Learn course. Use this when
+      Create a new content item in a Blackboard LMS course. Use this when
       a user wants to add a document, folder, link, or file placeholder to
       a course's content area. You can create items at the top level of the
       course or nested under an existing folder by specifying parent_id.
@@ -225,7 +225,7 @@ tools:
 
   - name: learn_manage_announcement
     description: >
-      Create, update, or delete an announcement in Blackboard Learn.
+      Create, update, or delete an announcement in Blackboard LMS.
       Announcements can be system-wide (no course_id) or course-specific
       (with course_id). Use this when a user wants to post news, updates,
       or notifications to students.
@@ -276,7 +276,7 @@ tools:
 
   - name: learn_get_user_info
     description: >
-      Look up a Blackboard Learn user by ID, username, or external ID.
+      Look up a Blackboard LMS user by ID, username, or external ID.
       Use this when a user asks about a specific person, wants to find
       someone's user ID, or needs user details like email, name, or
       system roles. The identifier is flexible - you can pass a username,
@@ -313,7 +313,7 @@ tools:
   - name: learn_submit_grade
     description: >
       Submit or update a grade for a student on a specific gradebook column
-      in a Blackboard Learn course. Use this when a user wants to grade a
+      in a Blackboard LMS course. Use this when a user wants to grade a
       student, update a score, or add feedback/notes to a grade entry.
     category: grades
     params:
@@ -371,7 +371,7 @@ tools:
 
   - name: learn_get_content_tree
     description: >
-      Get the full content tree (table of contents) for a Blackboard Learn
+      Get the full content tree (table of contents) for a Blackboard LMS
       course. Use this when a user asks "what's in this course", wants to
       see the course structure, or needs to find content item IDs before
       creating or modifying content. Returns a hierarchical tree view.
@@ -395,7 +395,7 @@ tools:
 
   - name: learn_manage_enrollment
     description: >
-      Enroll or unenroll a user in a Blackboard Learn course. Use this
+      Enroll or unenroll a user in a Blackboard LMS course. Use this
       when a user wants to add someone to a course, remove them, or
       change their enrollment role. The default role is Student.
     category: enrollments
@@ -447,7 +447,7 @@ tools:
   - name: learn_get_calendar
     description: >
       Get calendar items (due dates, events, schedules) for a user or
-      course in Blackboard Learn. Use this when a user asks about
+      course in Blackboard LMS. Use this when a user asks about
       upcoming deadlines, due dates, scheduled events, or "what's coming up".
       Can filter by date range and scope to a specific course.
     category: courses
@@ -487,7 +487,7 @@ tools:
 
   - name: learn_execute_api
     description: >
-      Execute any Blackboard Learn REST API endpoint directly. This is an
+      Execute any Blackboard LMS REST API endpoint directly. This is an
       escape hatch for operations not covered by the other tools. Use this
       when you need to call a specific API endpoint that doesn't have a
       dedicated tool, or when you need fine-grained control over the request.
@@ -623,7 +623,7 @@ tools:
 
   - name: learn_get_system_info
     description: >
-      Get Blackboard Learn server version and system information.
+      Get Blackboard LMS server version and system information.
       Useful for checking compatibility and available features.
     category: system
     params: []

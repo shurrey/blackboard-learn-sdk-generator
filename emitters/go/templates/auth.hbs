@@ -1,4 +1,4 @@
-package learn
+package lms
 
 import (
 	"context"
@@ -58,7 +58,7 @@ func NewOAuth2Client(baseURL, clientID, clientSecret, tokenEndpoint string) *OAu
 
 // RevokeToken clears the locally cached access token and expiry.
 //
-// Note: Blackboard Learn does not expose an RFC 7009 revocation endpoint,
+// Note: Blackboard LMS does not expose an RFC 7009 revocation endpoint,
 // so this only clears local state.
 func (o *OAuth2Client) RevokeToken() {
 	o.mu.Lock()

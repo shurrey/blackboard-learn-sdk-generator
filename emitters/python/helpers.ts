@@ -178,4 +178,10 @@ export function registerPyHelpers(handlebars: typeof import('handlebars')): void
     // Escape quotes for use in Field(description="...")
     return text.replace(/"/g, '\\"').replace(/\n/g, ' ');
   });
+  // Convert dot-separated resource path to Python accessor chain
+  // E.g., "courses.contents.children" -> "courses.contents.children"
+  handlebars.registerHelper('pyResourceChain', (path: string) => {
+    if (!path) return '';
+    return path.split('.').map(s => snakeCase(s)).join('.');
+  });
 }

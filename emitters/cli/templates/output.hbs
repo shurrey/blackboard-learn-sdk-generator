@@ -1,0 +1,217 @@
+package output
+
+import (
+	"encoding/csv"
+	"encoding/json"
+	"fmt"
+	"os"
+	"reflect"
+	"strings"
+	"text/tabwriter"
+
+	"gopkg.in/yaml.v3"
+)
+
+// Formatter handles output formatting in different formats.
+type Formatter struct {
+	format string
+}
+
+// NewFormatter creates a new Formatter for the given output format.
+func NewFormatter(format string) *Formatter {
+	return &Formatter{format: strings.ToLower(format)}
+}
+
+// Print outputs data in the configured format.
+func (f *Formatter) Print(data any) error {
+	switch f.format {
+	case "json":
+		return f.printJSON(data)
+	case "yaml":
+		return f.printYAML(data)
+	case "csv":
+		return f.printCSV(data)
+	default:
+		return f.printTable(data)
+	}
+}
+
+func (f *Formatter) printJSON(data any) error {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(data)
+}
+
+func (f *Formatter) printYAML(data any) error {
+	return yaml.NewEncoder(os.Stdout).Encode(data)
+}
+
+func (f *Formatter) printTable(data any) error {
+	v := reflect.ValueOf(data)
+
+	// Handle pointer
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	// Single item: print as key-value pairs
+	if v.Kind() == reflect.Struct {
+		return f.printStructTable(v)
+	}
+
+	// Slice: print as table with headers
+	if v.Kind() == reflect.Slice {
+		if v.Len() == 0 {
+			fmt.Println("No results.")
+			return nil
+		}
+		return f.printSliceTable(v)
+	}
+
+	// Fallback to JSON for other types
+	return f.printJSON(data)
+}
+
+func (f *Formatter) printStructTable(v reflect.Value) error {
+	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		name := field.Tag.Get("json")
+		if name == "" || name == "-" {
+			name = field.Name
+		}
+		// Strip omitempty
+		if idx := strings.Index(name, ","); idx >= 0 {
+			name = name[:idx]
+		}
+		fmt.Fprintf(w, "%s:\t%v\n", name, v.Field(i).Interface())
+	}
+	return w.Flush()
+}
+
+func (f *Formatter) printSliceTable(v reflect.Value) error {
+	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+
+	// Get headers from first element's struct tags
+	elem := v.Index(0)
+	if elem.Kind() == reflect.Ptr {
+		elem = elem.Elem()
+	}
+	t := elem.Type()
+	if t.Kind() != reflect.Struct {
+		return f.printJSON(v.Interface())
+	}
+
+	// Collect visible fields (up to 6 for readability)
+	type fieldInfo struct {
+		name  string
+		index int
+	}
+	var fields []fieldInfo
+	for i := 0; i < t.NumField() && len(fields) < 6; i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		// Skip complex types in table view
+		if field.Type.Kind() == reflect.Slice || field.Type.Kind() == reflect.Map || field.Type.Kind() == reflect.Struct {
+			continue
+		}
+		name := field.Tag.Get("json")
+		if name == "" || name == "-" {
+			name = field.Name
+		}
+		if idx := strings.Index(name, ","); idx >= 0 {
+			name = name[:idx]
+		}
+		fields = append(fields, fieldInfo{name: name, index: i})
+	}
+
+	// Print headers
+	headers := make([]string, len(fields))
+	for i, f := range fields {
+		headers[i] = strings.ToUpper(f.name)
+	}
+	fmt.Fprintln(w, strings.Join(headers, "\t"))
+
+	// Print rows
+	for i := 0; i < v.Len(); i++ {
+		row := v.Index(i)
+		if row.Kind() == reflect.Ptr {
+			row = row.Elem()
+		}
+		vals := make([]string, len(fields))
+		for j, f := range fields {
+			val := fmt.Sprintf("%v", row.Field(f.index).Interface())
+			if len(val) > 50 {
+				val = val[:47] + "..."
+			}
+			vals[j] = val
+		}
+		fmt.Fprintln(w, strings.Join(vals, "\t"))
+	}
+	return w.Flush()
+}
+
+func (f *Formatter) printCSV(data any) error {
+	v := reflect.ValueOf(data)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	w := csv.NewWriter(os.Stdout)
+	defer w.Flush()
+
+	if v.Kind() != reflect.Slice || v.Len() == 0 {
+		// For non-slice data, fall back to JSON
+		return f.printJSON(data)
+	}
+
+	elem := v.Index(0)
+	if elem.Kind() == reflect.Ptr {
+		elem = elem.Elem()
+	}
+	t := elem.Type()
+	if t.Kind() != reflect.Struct {
+		return f.printJSON(data)
+	}
+
+	// Headers
+	var headers []string
+	var indices []int
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		name := field.Tag.Get("json")
+		if name == "" || name == "-" {
+			name = field.Name
+		}
+		if idx := strings.Index(name, ","); idx >= 0 {
+			name = name[:idx]
+		}
+		headers = append(headers, name)
+		indices = append(indices, i)
+	}
+	w.Write(headers)
+
+	// Rows
+	for i := 0; i < v.Len(); i++ {
+		row := v.Index(i)
+		if row.Kind() == reflect.Ptr {
+			row = row.Elem()
+		}
+		record := make([]string, len(indices))
+		for j, idx := range indices {
+			record[j] = fmt.Sprintf("%v", row.Field(idx).Interface())
+		}
+		w.Write(record)
+	}
+
+	return nil
+}

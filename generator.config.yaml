@@ -1,5 +1,5 @@
 sdk:
-  name: blackboard-learn
+  name: blackboard-lms
   version: "1.0.0"
   license: Apache-2.0
 
@@ -183,7 +183,7 @@ idFormats:
     - "userName:{name}"
     - "uuid:{uuid}"
   description: >
-    Blackboard Learn supports multiple ID formats. Primary keys are numeric.
+    Blackboard LMS supports multiple ID formats. Primary keys are numeric.
     Alternative lookups use prefixed formats: externalId:{id}, userName:{name}, uuid:{uuid}.
 
 naming:
@@ -200,50 +200,57 @@ naming:
 
 languages:
   python:
-    packageName: blackboard-learn
-    moduleName: blackboard_learn
+    packageName: blackboard-lms
+    moduleName: blackboard_lms
     minVersion: "3.12"
     httpClient: httpx
     models: pydantic
     formatter: ruff
   typescript:
-    packageName: "@blackboard/learn-sdk"
+    packageName: "@blackboard/lms-sdk"
     minVersion: "node22"
     httpClient: fetch
     formatter: prettier
     validation: true
   java:
     groupId: com.blackboard
-    artifactId: learn-sdk
+    artifactId: lms-sdk
     minVersion: "21"
     httpClient: java.net.http
     models: jackson
     formatter: google-java-format
     validation: true
   csharp:
-    namespace: Blackboard.Learn
-    packageName: Blackboard.Learn
+    namespace: Blackboard.LMS
+    packageName: Blackboard.LMS
     minVersion: "net9.0"
     httpClient: HttpClient
     models: System.Text.Json
     formatter: dotnet-format
     validation: true
   go:
-    module: "github.com/blackboard/learn-go"
+    module: "github.com/blackboard/lms-go"
     minVersion: "1.24"
     httpClient: net/http
     formatter: gofmt
     validation: true
   ruby:
-    gemName: blackboard_learn
-    moduleName: BlackboardLearn
+    gemName: blackboard_lms
+    moduleName: BlackboardLMS
     minVersion: "3.4"
     httpClient: faraday
     formatter: rubocop
 
+cli:
+  module: "github.com/blackboard/bblms-cli"
+  sdkModule: "github.com/blackboard/lms-go"
+  binaryName: bblms
+  minGoVersion: "1.24"
+  formatter: gofmt
+
 mcp:
   baseSdk: python
-  serverName: blackboard-learn-mcp
+  serverName: blackboard-lms-mcp
   transport:
     - stdio
     - streamable-http

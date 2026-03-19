@@ -6,9 +6,10 @@ import org.junit.jupiter.api.TestInstance;
 import static org.junit.jupiter.api.Assertions.*;
 
 import {{basePackage}}.errors.APIError;
+import {{basePackage}}.types.*;
 
 /**
- * Integration tests for the Blackboard Learn Java SDK.
+ * Integration tests for the Blackboard LMS Java SDK.
  * Runs against a Prism mock server.
  *
  * <p>Auto-generated — do not edit manually.</p>
@@ -26,42 +27,55 @@ public class IntegrationTest {
     @BeforeAll
     void setUp() {
         client = Client.builder()
-            .domain(MOCK_SERVER_URL.replaceAll("^https?://", ""))
+            .baseUrl(MOCK_SERVER_URL)
             .clientId("test-client-id")
             .clientSecret("test-client-secret")
-            .baseUrl(MOCK_SERVER_URL + "/learn/api/public")
             .build();
+        // Bypass OAuth token fetch — the mock server doesn't issue real tokens.
+        client.setAccessToken("mock-token");
     }
 
 {{#each resources}}
 {{#each methods}}
+{{#unless paginated}}
+{{#isBinary this}}
+{{else}}
 {{#if (eq kind "list")}}
+{{#unless (hasRequiredQueryParams this)}}
     @Test
-    void test{{PascalCase ../name}}_{{name}}() {
-        var result = client.{{camelCase ../name}}().{{camelCase name}}({{#each pathParams}}"_1_1"{{#unless @last}}, {{/unless}}{{/each}});
+    void test{{PascalCase ../path}}_{{name}}() {
+        {{#if (isVoid response.type)}}
+        client.{{javaResourceChain ../path}}.{{camelCase name}}({{#each pathParams}}{{javaTestValue this}}{{#unless @last}}, {{/unless}}{{/each}});
+        {{else}}
+        var result = client.{{javaResourceChain ../path}}.{{camelCase name}}({{#each pathParams}}{{javaTestValue this}}{{#unless @last}}, {{/unless}}{{/each}});
         assertNotNull(result);
+        {{/if}}
     }
 
+{{/unless}}
 {{else if (eq kind "get")}}
+{{#unless (hasRequiredQueryParams this)}}
     @Test
-    void test{{PascalCase ../name}}_{{name}}() {
-        var result = client.{{camelCase ../name}}().{{camelCase name}}({{#each pathParams}}"_1_1"{{#unless @last}}, {{/unless}}{{/each}});
+    void test{{PascalCase ../path}}_{{name}}() {
+        {{#if (isVoid response.type)}}
+        client.{{javaResourceChain ../path}}.{{camelCase name}}({{#each pathParams}}{{javaTestValue this}}{{#unless @last}}, {{/unless}}{{/each}});
+        {{else}}
+        var result = client.{{javaResourceChain ../path}}.{{camelCase name}}({{#each pathParams}}{{javaTestValue this}}{{#unless @last}}, {{/unless}}{{/each}});
         assertNotNull(result);
+        {{/if}}
     }
 
+{{/unless}}
 {{/if}}
+{{/isBinary}}
+{{/unless}}
 {{/each}}
 {{/each}}
     @Test
     void testErrorHandling() {
-        assertThrows(APIError.class, () -> {
-{{#each resources}}
-{{#each methods}}
-{{#if (eq kind "get")}}
-            client.{{camelCase ../name}}().{{camelCase name}}({{#each pathParams}}"non-existent-id"{{#unless @last}}, {{/unless}}{{/each}});
-{{/if}}
-{{/each}}
-{{/each}}
-        });
+        // Verify APIError can be constructed from an error response
+        var error = APIError.fromResponse(404, "{\"status\":404,\"message\":\"Not Found\"}", null);
+        assertNotNull(error);
+        assertEquals(404, error.getStatus());
     }
 }

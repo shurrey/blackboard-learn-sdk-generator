@@ -1,10 +1,10 @@
 # Authentication
 
-The {{metadata.name}} Go SDK supports multiple OAuth 2.0 authentication flows for the Blackboard Learn REST API.
+The {{metadata.name}} Go SDK supports multiple OAuth 2.0 authentication flows for the Blackboard LMS REST API.
 
 ## Overview
 
-Blackboard Learn uses OAuth 2.0 for all API authentication. The SDK supports three approaches:
+Blackboard LMS uses OAuth 2.0 for all API authentication. The SDK supports three approaches:
 
 | Flow | Use Case | User Interaction |
 |---|---|---|
@@ -39,11 +39,11 @@ import (
     "fmt"
     "log"
 
-    learn "{{langConfig.module}}"
+    lms "{{langConfig.module}}"
 )
 
 func main() {
-    client := learn.NewClient(
+    client := lms.NewClient(
         "your-institution.blackboard.com",
         "your-client-id",
         "your-client-secret",
@@ -118,11 +118,11 @@ import (
     "fmt"
     "log"
 
-    learn "{{langConfig.module}}"
+    lms "{{langConfig.module}}"
 )
 
 func main() {
-    auth := learn.NewOAuth2Client(
+    auth := lms.NewOAuth2Client(
         "https://your-institution.blackboard.com",
         "your-client-id",
         "your-client-secret",
@@ -185,7 +185,7 @@ func main() {
 If you obtain an access token through your own mechanism (e.g., a different OAuth flow, a token proxy), you can set it directly:
 
 ```go
-auth := learn.NewOAuth2Client(
+auth := lms.NewOAuth2Client(
     "https://your-institution.blackboard.com",
     "your-client-id",
     "your-client-secret",
@@ -222,12 +222,12 @@ Authentication failures return errors:
 ```go
 import (
     "errors"
-    learn "{{langConfig.module}}"
+    lms "{{langConfig.module}}"
 )
 
 courses, err := client.Courses().List(ctx)
 if err != nil {
-    var apiErr *learn.APIError
+    var apiErr *lms.APIError
     if errors.As(err, &apiErr) {
         switch apiErr.StatusCode {
         case 401:

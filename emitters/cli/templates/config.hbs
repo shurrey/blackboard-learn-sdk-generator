@@ -1,0 +1,116 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"gopkg.in/yaml.v3"
+
+	"{{cliModule}}/internal/keyring"
+)
+
+// Profile holds configuration for a named connection profile.
+type Profile struct {
+	Domain       string `yaml:"domain"`
+	ClientID     string `yaml:"client_id"`
+	ClientSecret string `yaml:"-"` // Never written to disk — stored in OS keychain
+}
+
+// configFile represents the on-disk YAML structure.
+type configFile struct {
+	DefaultProfile string              `yaml:"default_profile"`
+	Profiles       map[string]*profile `yaml:"profiles"`
+}
+
+type profile struct {
+	Domain   string `yaml:"domain"`
+	ClientID string `yaml:"client_id"`
+}
+
+// Load reads a profile from ~/.bblms/config.yaml and retrieves secrets from the OS keychain.
+func Load(name string) (*Profile, error) {
+	cfgPath := configPath()
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &Profile{}, nil
+		}
+		return nil, fmt.Errorf("reading config: %w", err)
+	}
+
+	var cfg configFile
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("parsing config: %w", err)
+	}
+
+	if name == "" || name == "default" {
+		if cfg.DefaultProfile != "" {
+			name = cfg.DefaultProfile
+		} else {
+			name = "default"
+		}
+	}
+
+	p, ok := cfg.Profiles[name]
+	if !ok {
+		return &Profile{}, nil
+	}
+
+	result := &Profile{
+		Domain:   p.Domain,
+		ClientID: p.ClientID,
+	}
+
+	// Retrieve secret from keyring
+	_, secret, err := keyring.GetCredentials(name)
+	if err == nil {
+		result.ClientSecret = secret
+	}
+
+	return result, nil
+}
+
+// Save writes non-secret profile config to ~/.bblms/config.yaml.
+func Save(name string, p *Profile) error {
+	cfgPath := configPath()
+
+	// Read existing config
+	var cfg configFile
+	data, err := os.ReadFile(cfgPath)
+	if err == nil {
+		yaml.Unmarshal(data, &cfg)
+	}
+
+	if cfg.Profiles == nil {
+		cfg.Profiles = make(map[string]*profile)
+	}
+
+	cfg.Profiles[name] = &profile{
+		Domain:   p.Domain,
+		ClientID: p.ClientID,
+	}
+
+	// Set default profile if this is the first one
+	if cfg.DefaultProfile == "" {
+		cfg.DefaultProfile = name
+	}
+
+	// Write config
+	dir := filepath.Dir(cfgPath)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("creating config dir: %w", err)
+	}
+
+	out, err := yaml.Marshal(&cfg)
+	if err != nil {
+		return fmt.Errorf("marshaling config: %w", err)
+	}
+
+	return os.WriteFile(cfgPath, out, 0600)
+}
+
+func configPath() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".bblms", "config.yaml")
+}

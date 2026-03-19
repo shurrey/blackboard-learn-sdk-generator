@@ -17,8 +17,8 @@ export class JavaEmitter extends BaseEmitter {
   constructor(ir: SDKIR, langConfig: any, options: EmitterOptions) {
     super(ir, langConfig, options);
     this.groupId = langConfig.groupId ?? 'com.blackboard';
-    this.artifactId = langConfig.artifactId ?? 'learn-sdk';
-    this.basePackage = `${this.groupId}.learn`;
+    this.artifactId = langConfig.artifactId ?? 'lms-sdk';
+    this.basePackage = `${this.groupId}.lms`;
   }
 
   get language(): string {
@@ -124,7 +124,7 @@ export class JavaEmitter extends BaseEmitter {
     if (templateName.startsWith('integration:')) {
       return {
         ...base,
-        resources: this.flattenResources().filter(r => r.methods.length > 0),
+        resources: this.getIntegrationTestResources(),
       };
     }
 

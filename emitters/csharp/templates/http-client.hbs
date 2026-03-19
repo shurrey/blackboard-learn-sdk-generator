@@ -76,7 +76,7 @@ public class LearnHttpClient : IDisposable
     }
 
     /// <summary>Upload a file using multipart/form-data.</summary>
-    public async Task<T> UploadFileAsync<T>(string path, Dictionary<string, string> pathParams,
+    public virtual async Task<T> UploadFileAsync<T>(string path, Dictionary<string, string> pathParams,
         Stream fileStream, string fileName, string fieldName = "file", CancellationToken ct = default)
     {
         var url = BuildUrl(path, pathParams);
@@ -101,7 +101,7 @@ public class LearnHttpClient : IDisposable
     }
 
     /// <summary>Download a file as raw bytes.</summary>
-    public async Task<FileDownload> DownloadFileAsync(string path, Dictionary<string, string> pathParams, CancellationToken ct = default)
+    public virtual async Task<FileDownload> DownloadFileAsync(string path, Dictionary<string, string> pathParams, CancellationToken ct = default)
     {
         var url = BuildUrl(path, pathParams);
         var token = await _authClient.GetTokenAsync();
@@ -193,7 +193,7 @@ public class LearnHttpClient : IDisposable
     {
         var url = path;
         foreach (var (key, value) in pathParams)
-            url = url.Replace($"{{{key}}}", Uri.EscapeDataString(value));
+            url = url.Replace("{" + key + "}", Uri.EscapeDataString(value));
         return url.StartsWith("http") ? url : _baseUrl + url;
     }
 

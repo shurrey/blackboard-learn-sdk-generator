@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "{{langConfig.packageName}}"
 version = "{{metadata.version}}"
-description = "Python SDK for the Blackboard Learn REST API"
+description = "Python SDK for the Blackboard LMS REST API"
 license = "{{metadata.license}}"
 requires-python = ">={{langConfig.minVersion}}"
 keywords = ["blackboard", "learn", "lms", "sdk", "rest-api", "education"]
@@ -38,7 +38,7 @@ Documentation = "https://github.com/blackboard/learn-python#readme"
 Repository = "https://github.com/blackboard/learn-python"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/blackboard_learn"]
+packages = ["src/blackboard_lms"]
 
 [tool.ruff]
 target-version = "py312"

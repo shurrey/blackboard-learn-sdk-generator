@@ -89,7 +89,7 @@ class SyncPage:
             url = self._path
             if self._path_params:
                 for key, value in self._path_params.items():
-                    url = url.replace(f"{{{key}}}", quote(str(value), safe=""))
+                    url = url.replace(f"{{{lbrace}}}{{{lbrace}}}{key}{{{rbrace}}}{{{rbrace}}}", quote(str(value), safe=""))
             full_url = f"{self._client._base_url}{url}"
 
             merged_params = {
@@ -194,7 +194,7 @@ class AsyncPage:
             url = self._path
             if self._path_params:
                 for key, value in self._path_params.items():
-                    url = url.replace(f"{{{key}}}", quote(str(value), safe=""))
+                    url = url.replace(f"{{{lbrace}}}{{{lbrace}}}{key}{{{rbrace}}}{{{rbrace}}}", quote(str(value), safe=""))
             full_url = f"{self._client._base_url}{url}"
 
             merged_params = {

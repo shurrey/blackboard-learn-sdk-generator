@@ -1,0 +1,51 @@
+package keyring
+
+import (
+	"fmt"
+
+	"github.com/zalando/go-keyring"
+)
+
+const serviceName = "{{binaryName}}"
+
+// StoreCredentials saves OAuth2 credentials in the OS keychain.
+func StoreCredentials(profile, clientID, clientSecret string) error {
+	idKey := fmt.Sprintf("%s/%s/client_id", serviceName, profile)
+	secretKey := fmt.Sprintf("%s/%s/client_secret", serviceName, profile)
+
+	if err := keyring.Set(idKey, serviceName, clientID); err != nil {
+		return fmt.Errorf("storing client ID: %w", err)
+	}
+	if err := keyring.Set(secretKey, serviceName, clientSecret); err != nil {
+		return fmt.Errorf("storing client secret: %w", err)
+	}
+	return nil
+}
+
+// GetCredentials retrieves OAuth2 credentials from the OS keychain.
+func GetCredentials(profile string) (clientID, clientSecret string, err error) {
+	idKey := fmt.Sprintf("%s/%s/client_id", serviceName, profile)
+	secretKey := fmt.Sprintf("%s/%s/client_secret", serviceName, profile)
+
+	clientID, err = keyring.Get(idKey, serviceName)
+	if err != nil {
+		return "", "", fmt.Errorf("retrieving client ID: %w", err)
+	}
+
+	clientSecret, err = keyring.Get(secretKey, serviceName)
+	if err != nil {
+		return "", "", fmt.Errorf("retrieving client secret: %w", err)
+	}
+
+	return clientID, clientSecret, nil
+}
+
+// DeleteCredentials removes OAuth2 credentials from the OS keychain.
+func DeleteCredentials(profile string) error {
+	idKey := fmt.Sprintf("%s/%s/client_id", serviceName, profile)
+	secretKey := fmt.Sprintf("%s/%s/client_secret", serviceName, profile)
+
+	keyring.Delete(idKey, serviceName)
+	keyring.Delete(secretKey, serviceName)
+	return nil
+}

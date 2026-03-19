@@ -30,7 +30,7 @@ public static class Paginator
             {
                 var resolvedPath = path;
                 foreach (var (key, value) in pathParams)
-                    resolvedPath = resolvedPath.Replace($"{{{key}}}", Uri.EscapeDataString(value));
+                    resolvedPath = resolvedPath.Replace("{" + key + "}", Uri.EscapeDataString(value));
                 url = $"{client.BaseUrl}{resolvedPath}?offset={offset}&limit={limit}";
             }
 

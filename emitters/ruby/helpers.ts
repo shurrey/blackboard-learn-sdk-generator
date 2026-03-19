@@ -60,4 +60,10 @@ export function registerRubyHelpers(handlebars: typeof import('handlebars')): vo
     }
     return typeRefToRubyYard(method.response.type);
   });
+  // Convert dot-separated resource path to Ruby accessor chain
+  // E.g., "courses.contents.children" -> "courses.contents.children"
+  handlebars.registerHelper('rbResourceChain', (path: string) => {
+    if (!path) return '';
+    return path.split('.').map(s => snakeCase(s)).join('.');
+  });
 }

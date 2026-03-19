@@ -1,7 +1,9 @@
-package learn
+package lms
 
 import (
+{{#goNeedsTestContext resource}}
 	"context"
+{{/goNeedsTestContext}}
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -28,6 +30,46 @@ func TestNew{{PascalCase resource.name}}Resource(t *testing.T) {
 
 {{#each resource.methods}}
 {{#unless paginated}}
+{{#isBinary this}}
+func Test{{PascalCase ../resource.name}}Resource_{{PascalCase name}}(t *testing.T) {
+	var called bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		{{#isUpload this}}
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte("{}"))
+		{{else}}
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("binary-data"))
+		{{/isUpload}}
+	}))
+	defer server.Close()
+
+	authClient := &OAuth2Client{}
+	authClient.SetAccessToken("test-token")
+	client := &HTTPClient{baseURL: server.URL, httpClient: server.Client(), authClient: authClient}
+	resource := New{{PascalCase ../resource.name}}Resource(client)
+	ctx := context.Background()
+
+	{{#isUpload this}}
+	_ = resource.{{PascalCase name}}(ctx{{#each pathParams}}, {{goTestValue this}}{{/each}}, "file", "test.txt", []byte("test"))
+	{{else}}
+	_, _ = resource.{{PascalCase name}}(ctx{{#each pathParams}}, {{goTestValue this}}{{/each}})
+	{{/isUpload}}
+
+	if !called {
+		t.Error("expected HTTP request to be made")
+	}
+}
+{{else}}
 func Test{{PascalCase ../resource.name}}Resource_{{PascalCase name}}(t *testing.T) {
 	var called bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -79,6 +121,7 @@ func Test{{PascalCase ../resource.name}}Resource_{{PascalCase name}}(t *testing.
 		t.Error("expected HTTP request to be made")
 	}
 }
+{{/isBinary}}
 {{/unless}}
 
 {{/each}}

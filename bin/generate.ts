@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { readFileSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { resolve, join, dirname } from 'node:path';
 import yaml from 'js-yaml';
 import { runSpecPipeline } from '../spec/index.js';
 import { IRBuilder } from '../ir/builder.js';
 import type { SDKIR } from '../ir/types.js';
 
-const VALID_TARGETS = ['all', 'python', 'typescript', 'java', 'csharp', 'go', 'ruby', 'mcp'] as const;
+const VALID_TARGETS = ['all', 'python', 'typescript', 'java', 'csharp', 'go', 'ruby', 'mcp', 'cli'] as const;
 type Target = typeof VALID_TARGETS[number];
 
 interface GenerateOptions {
@@ -25,7 +25,7 @@ const program = new Command();
 
 program
   .name('generate')
-  .description('Generate Blackboard Learn SDKs from the REST API spec')
+  .description('Generate Blackboard LMS SDKs from the REST API spec')
   .version('1.0.0')
   .argument('<target>', `Target to generate: ${VALID_TARGETS.join(' | ')}`)
   .option('--spec <url>', 'Override spec URL (or path to local file)')
@@ -82,10 +82,16 @@ async function generate(target: Target, options: GenerateOptions): Promise<void>
     verbose: options.verbose,
   });
 
+  // Cache the transformed OpenAPI 3.0 spec for mock server usage
+  const oas3CachePath = resolve(configPath, '..', 'spec/cache/openapi3.json');
+  mkdirSync(dirname(oas3CachePath), { recursive: true });
+  writeFileSync(oas3CachePath, JSON.stringify(spec, null, 2));
+  if (options.verbose) console.log(`Cached OpenAPI 3.0 spec at ${oas3CachePath}`);
+
   // Build IR
   console.log('Building intermediate representation...');
   const builder = new IRBuilder(spec, {
-    name: config.sdk?.name ?? 'blackboard-learn',
+    name: config.sdk?.name ?? 'blackboard-lms',
     version: config.sdk?.version ?? '1.0.0',
     license: config.sdk?.license ?? 'Apache-2.0',
     baseUrl: config.api?.baseUrl ?? 'https://{domain}/learn/api/public',
@@ -96,7 +102,7 @@ async function generate(target: Target, options: GenerateOptions): Promise<void>
 
   // Determine which targets to generate
   const targets: Target[] = target === 'all'
-    ? ['python', 'typescript', 'java', 'csharp', 'go', 'ruby', 'mcp']
+    ? ['python', 'typescript', 'java', 'csharp', 'go', 'ruby', 'mcp', 'cli']
     : [target];
 
   const outputDir = resolve(options.output ?? './output');
@@ -135,7 +141,7 @@ async function generateTarget(
       return;
     }
 
-    const langConfig = target === 'mcp' ? config.mcp : config.languages?.[target];
+    const langConfig = target === 'mcp' ? config.mcp : target === 'cli' ? config.cli : config.languages?.[target];
     const emitter = new EmitterClass(ir, langConfig ?? {}, {
       outputDir: targetOutputDir,
       skipFormat: options.skipFormat ?? false,
@@ -155,13 +161,14 @@ async function generateTarget(
 
 function getOutputDirName(target: Target, config: any): string {
   switch (target) {
-    case 'python': return `blackboard-learn-python`;
-    case 'typescript': return `blackboard-learn-typescript`;
-    case 'java': return `blackboard-learn-java`;
-    case 'csharp': return `blackboard-learn-csharp`;
-    case 'go': return `blackboard-learn-go`;
-    case 'ruby': return `blackboard-learn-ruby`;
-    case 'mcp': return `blackboard-learn-mcp`;
-    default: return `blackboard-learn-${target}`;
+    case 'python': return `blackboard-lms-python`;
+    case 'typescript': return `blackboard-lms-typescript`;
+    case 'java': return `blackboard-lms-java`;
+    case 'csharp': return `blackboard-lms-csharp`;
+    case 'go': return `blackboard-lms-go`;
+    case 'ruby': return `blackboard-lms-ruby`;
+    case 'mcp': return `blackboard-lms-mcp`;
+    case 'cli': return `blackboard-lms-cli`;
+    default: return `blackboard-lms-${target}`;
   }
 }

@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 from urllib.parse import urlencode, quote
 
-_logger = logging.getLogger("blackboard_learn")
+_logger = logging.getLogger("blackboard_lms")
 
 import httpx
 
@@ -314,7 +314,7 @@ class HttpClient:
         url = path
         if path_params:
             for key, value in path_params.items():
-                url = url.replace(f"{{{key}}}", quote(str(value), safe=""))
+                url = url.replace(f"{{{lbrace}}}{{{lbrace}}}{key}{{{rbrace}}}{{{rbrace}}}", quote(str(value), safe=""))
         return f"{self._base_url}{url}"
 
     def _get_retry_delay(self, response: Optional[httpx.Response], attempt: int) -> float:

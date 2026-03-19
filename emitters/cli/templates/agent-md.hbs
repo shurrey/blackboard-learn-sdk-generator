@@ -1,0 +1,71 @@
+# AGENT.md - Coding Assistant Guide
+
+> This file provides context for AI coding assistants working with the {{binaryName}} CLI.
+
+## Overview
+
+This is the official CLI for the Blackboard LMS REST API. It wraps the Go SDK with
+Cobra-based commands for every API resource.
+
+**Version:** {{metadata.version}}
+**Runtime:** Go {{langConfig.minGoVersion}}+
+**Binary:** `{{binaryName}}`
+**Module:** `{{cliModule}}`
+
+## Architecture
+
+```
+main.go                         # Entry point
+cmd/
+  root.go                       # Root command, global flags, credential resolution
+  configure.go                  # Interactive setup, keychain storage
+  auth.go                       # auth login / status / logout
+  <resource>.go                 # One file per API resource
+internal/
+  config/config.go              # Profile config file (~/.bblms/config.yaml)
+  keyring/keyring.go            # OS keychain integration (go-keyring)
+  output/output.go              # Table/JSON/YAML/CSV formatters
+  sdk/factory.go                # SDK client factory
+```
+
+## Key Patterns
+
+- Each resource file defines a parent command + per-method subcommands
+- Path parameters → positional args, query parameters → flags
+- Request bodies via `--body` (inline JSON), `--body-file`, or stdin
+- Paginated methods auto-paginate; `--no-paginate` for single page
+- Output format controlled by `--output` / `-o` flag
+
+## Credential Resolution (priority order)
+
+1. CLI flags: `--domain`, `--client-id`, `--client-secret`
+2. Environment variables: `BBLMS_DOMAIN`, `BBLMS_CLIENT_ID`, `BBLMS_CLIENT_SECRET`
+3. Config file + OS keychain: `~/.bblms/config.yaml` + keychain
+
+## Dependencies
+
+- **Go SDK**: `{{sdkModule}}` — all HTTP, auth, pagination logic
+- **Cobra**: CLI framework
+- **go-keyring**: OS keychain (macOS Keychain, Windows Credential Manager, Linux secret-service)
+- **gopkg.in/yaml.v3**: Config file parsing
+
+## Available Commands
+
+{{#each topLevelResources}}
+- **{{kebabCase name}}**{{#each methods}} | `{{kebabCase name}}`{{/each}}
+{{#each subresources}}
+  - **{{kebabCase name}}**{{#each methods}} | `{{kebabCase name}}`{{/each}}
+{{/each}}
+{{/each}}
+
+## Building
+
+```bash
+go build -o {{binaryName}} .
+```
+
+## Testing
+
+```bash
+go test ./... -v
+```

@@ -116,4 +116,18 @@ export function registerJavaHelpers(handlebars: typeof import('handlebars')): vo
     if (method.response.type.kind === 'void') return 'void';
     return typeRefToJava(method.response.type);
   });
+  // Convert dot-separated resource path to Java accessor chain
+  // E.g., "courses.contents.children" -> "courses().contents().children()"
+  handlebars.registerHelper('javaResourceChain', (path: string) => {
+    if (!path) return '';
+    return path.split('.').map(s => camelCase(s) + '()').join('.');
+  });
+  // Convert a path param to its string value, using getValue() for enums
+  handlebars.registerHelper('javaParamToString', (param: any) => {
+    const varName = camelCase(param.name);
+    if (param.type?.kind === 'enum') {
+      return `${varName}.getValue()`;
+    }
+    return `String.valueOf(${varName})`;
+  });
 }

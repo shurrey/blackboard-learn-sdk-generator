@@ -3,7 +3,7 @@
  */
 
 import type { TypeRef, Parameter } from '../../ir/types.js';
-import { camelCase } from '../shared/case-utils.js';
+import { camelCase, pascalCase } from '../shared/case-utils.js';
 
 export function typeRefToCSharp(type: TypeRef): string {
   switch (type.kind) {
@@ -78,5 +78,11 @@ export function registerCSharpHelpers(handlebars: typeof import('handlebars')): 
     }
     if (method.response.type.kind === 'void') return 'Task';
     return `Task<${typeRefToCSharp(method.response.type)}>`;
+  });
+  // Convert dot-separated resource path to C# accessor chain
+  // E.g., "courses.contents.children" -> "Courses.Contents.Children"
+  handlebars.registerHelper('csResourceChain', (path: string) => {
+    if (!path) return '';
+    return path.split('.').map(s => pascalCase(s)).join('.');
   });
 }

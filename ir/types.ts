@@ -78,7 +78,7 @@ export interface Resource {
 
 // ─── Methods ────────────────────────────────────────────────────────────────────
 
-export type MethodKind = 'list' | 'get' | 'create' | 'update' | 'delete' | 'action';
+export type MethodKind = 'list' | 'get' | 'create' | 'update' | 'replace' | 'delete' | 'action';
 
 export interface Method {
   /** Canonical name: list, get, create, update, delete, or custom */

@@ -1,6 +1,6 @@
-# Blackboard Learn SDK Generator
+# Blackboard LMS SDK Generator
 
-A code generator that produces idiomatic SDKs for the Blackboard Learn REST API in **7 targets**: TypeScript, Python, Java, C#, Go, Ruby, and an MCP server.
+A code generator that produces idiomatic SDKs for the Blackboard LMS REST API in **7 targets**: TypeScript, Python, Java, C#, Go, Ruby, and an MCP server.
 
 ## System Requirements
 
@@ -56,7 +56,7 @@ These are only needed if you want post-generation formatting or to run the gener
 ## Installation
 
 ```bash
-cd blackboard-learn-sdk-generator
+cd blackboard-lms-sdk-generator
 npm install
 ```
 
@@ -66,7 +66,7 @@ All generator settings live in `generator.config.yaml`:
 
 ```yaml
 sdk:
-  name: blackboard-learn        # SDK name prefix
+  name: blackboard-lms       # SDK name prefix
   version: "1.0.0"              # Version stamped into generated SDKs
   license: Apache-2.0
 
@@ -94,7 +94,7 @@ resources:
 
 ### Authentication
 
-The `auth` section configures OAuth 2.0 endpoints. Blackboard Learn supports two-legged (client_credentials) and three-legged (authorization_code + PKCE) flows:
+The `auth` section configures OAuth 2.0 endpoints. Blackboard LMS supports two-legged (client_credentials) and three-legged (authorization_code + PKCE) flows:
 
 ```yaml
 auth:
@@ -115,13 +115,13 @@ Each language target has its own configuration block under `languages`:
 ```yaml
 languages:
   python:
-    packageName: blackboard-learn
-    moduleName: blackboard_learn
+    packageName: blackboard-lms
+    moduleName: blackboard_lms
     minVersion: "3.12"
     httpClient: httpx
     formatter: ruff
   typescript:
-    packageName: "@blackboard/learn-sdk"
+    packageName: "@blackboard/lms-sdk"
     minVersion: "node22"
     httpClient: fetch
     formatter: prettier
@@ -235,7 +235,7 @@ OpenAPI Spec → Spec Pipeline → IR Builder → Emitters → SDK Output
 
 ### Stage 1: Spec Pipeline (`spec/`)
 
-1. **Download** — Fetches the Blackboard Learn Swagger 2.0 spec (or loads from local file/cache)
+1. **Download** — Fetches the Blackboard LMS Swagger 2.0 spec (or loads from local file/cache)
 2. **Convert** — Converts Swagger 2.0 to OpenAPI 3.0 using `swagger2openapi`
 3. **Transform** — Applies a chain of transforms to fix and enrich the spec:
    - `fix-auth-schemes` — Normalizes OAuth security schemes
@@ -314,7 +314,7 @@ Generated SDKs are written to `output/<sdk-name>-<language>/` with a complete pr
 ## Project Structure
 
 ```
-blackboard-learn-sdk-generator/
+blackboard-lms-sdk-generator/
 ├── .github/workflows/
 │   ├── ci.yml                # Generator CI (lint, test, typecheck)
 │   ├── release.yml           # SDK release automation

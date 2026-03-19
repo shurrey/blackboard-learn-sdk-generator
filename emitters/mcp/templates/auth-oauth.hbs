@@ -1,5 +1,5 @@
 """
-OAuth 2.0 three-legged authentication for Blackboard Learn MCP server.
+OAuth 2.0 three-legged authentication for Blackboard LMS MCP server.
 
 Used when the MCP server runs in streamable-http transport mode and needs
 to authenticate on behalf of individual users via the authorization_code
@@ -12,7 +12,7 @@ This module provides:
     - Per-user session management
 
 Required environment variables:
-    BLACKBOARD_BASE_URL: The base URL of your Blackboard Learn instance
+    BLACKBOARD_BASE_URL: The base URL of your Blackboard LMS instance
     BLACKBOARD_CLIENT_ID: The OAuth 2.0 application key
     BLACKBOARD_CLIENT_SECRET: The OAuth 2.0 application secret
     BLACKBOARD_REDIRECT_URI: The redirect URI registered with the application
@@ -72,7 +72,7 @@ class PKCEChallenge:
 
 
 class OAuthManager:
-    """Manages OAuth 2.0 three-legged authentication flow for Blackboard Learn.
+    """Manages OAuth 2.0 three-legged authentication flow for Blackboard LMS.
 
     Handles authorization URL generation, token exchange, refresh, and
     per-user session tracking for the HTTP transport mode.

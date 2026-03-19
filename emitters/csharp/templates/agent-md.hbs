@@ -4,7 +4,7 @@
 
 ## Overview
 
-This is the official C# SDK for the Blackboard Learn REST API. It provides typed async methods for all API endpoints with built-in OAuth 2.0 authentication, pagination, retry logic, and error handling.
+This is the official C# SDK for the Blackboard LMS REST API. It provides typed async methods for all API endpoints with built-in OAuth 2.0 authentication, pagination, retry logic, and error handling.
 
 **Version:** {{metadata.version}}
 **Runtime:** .NET 9.0+
@@ -21,7 +21,7 @@ dotnet add package {{namespace}}
 ```csharp
 using {{namespace}};
 
-var client = new BlackboardLearnClient(new ClientOptions
+var client = new BlackboardLMSClient(new ClientOptions
 {
     Domain = "your-institution.blackboard.com",
     ClientId = Environment.GetEnvironmentVariable("BB_CLIENT_ID")!,

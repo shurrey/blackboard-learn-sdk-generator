@@ -167,6 +167,11 @@ export abstract class BaseEmitter {
   private registerCommonHelpers(): void {
     const hbs = this.handlebars;
 
+    // Literal brace helpers (for languages like Python where { } in templates
+    // collide with Handlebars syntax)
+    hbs.registerHelper('lbrace', () => '{');
+    hbs.registerHelper('rbrace', () => '}');
+
     // String helpers
     hbs.registerHelper('eq', (a, b) => a === b);
     hbs.registerHelper('neq', (a, b) => a !== b);
@@ -243,6 +248,34 @@ export abstract class BaseEmitter {
       return method.response?.binary ? options.fn(this) : options.inverse(this);
     });
 
+    // Integration test helper — checks if a resource has any testable (non-paginated, non-binary, list/get) methods
+    hbs.registerHelper('hasTestableMethod', (methods: any[]) => {
+      if (!methods) return false;
+      return methods.some((m: any) =>
+        (m.kind === 'list' || m.kind === 'get') &&
+        !m.paginated &&
+        !m.requestBody?.binary &&
+        !m.response?.binary &&
+        m.response?.type?.kind !== 'void' &&
+        !(m.queryParams?.some((p: any) => p.required))
+      );
+    });
+
+    // Integration test helper — checks if a method has required query params
+    // (used to skip tests that would fail because the SDK method can't pass them)
+    hbs.registerHelper('hasRequiredQueryParams', (method: any) => {
+      if (!method?.queryParams) return false;
+      return method.queryParams.some((p: any) => p.required);
+    });
+
+    // Integration test helper — get the first enum value for an enum type parameter
+    hbs.registerHelper('firstEnumValue', (param: any) => {
+      if (param?.type?.kind === 'enum' && param.type.values?.length > 0) {
+        return param.type.values[0];
+      }
+      return null;
+    });
+
     // Indentation helper
     hbs.registerHelper('indent', (text: string, spaces: number) => {
       if (!text) return '';
@@ -274,6 +307,60 @@ export abstract class BaseEmitter {
    */
   protected findResource(name: string): Resource | undefined {
     return this.flattenResources().find(r => r.name === name);
+  }
+
+  /**
+   * Get resources suitable for integration tests.
+   *
+   * Resource classes are generated once per unique name (using the first
+   * resource found with that name via flattenResources().find()). This means:
+   * 1. Only methods from the first occurrence exist on the generated class.
+   * 2. Only sub-resources from the first occurrence exist as fields.
+   *
+   * This method filters the flattened resource list to only include resources
+   * that are reachable through the canonical (first-by-name) resource chain,
+   * and replaces their methods with the canonical methods.
+   */
+  protected getIntegrationTestResources(): Resource[] {
+    const all = this.flattenResources();
+
+    // Build canonical maps: name -> first resource's methods and sub-resource names
+    const canonicalMethods = new Map<string, any[]>();
+    const canonicalSubresources = new Map<string, Set<string>>();
+    for (const r of all) {
+      if (!canonicalMethods.has(r.name)) {
+        canonicalMethods.set(r.name, r.methods);
+        canonicalSubresources.set(r.name, new Set(r.subresources.map(s => s.name)));
+      }
+    }
+
+    // Check if a resource's full path is reachable via canonical chain.
+    // The path is like "courses.gradebook.columns.users.lastChanged".
+    // We need to verify that each segment's canonical resource has the next
+    // segment as a sub-resource.
+    const isReachable = (path: string): boolean => {
+      if (!path) return true;
+      const segments = path.split('.');
+      // The first segment must be a top-level resource on the client
+      // (which is always reachable since client fields are generated from IR)
+      for (let i = 0; i < segments.length - 1; i++) {
+        const parentName = segments[i];
+        const childName = segments[i + 1];
+        const parentSubs = canonicalSubresources.get(parentName);
+        if (!parentSubs || !parentSubs.has(childName)) {
+          return false;
+        }
+      }
+      return true;
+    };
+
+    return all
+      .filter(r => isReachable(r.path ?? r.name))
+      .map(r => ({
+        ...r,
+        methods: canonicalMethods.get(r.name) ?? [],
+      }))
+      .filter(r => r.methods.length > 0);
   }
 
   /**

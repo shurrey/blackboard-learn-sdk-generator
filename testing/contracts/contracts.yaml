@@ -1,4 +1,4 @@
-# Shared contract definitions for Blackboard Learn SDK testing.
+# Shared contract definitions for Blackboard LMS SDK testing.
 # These define expected shapes, ID formats, and pagination behaviors
 # that tests across all languages should validate.
 

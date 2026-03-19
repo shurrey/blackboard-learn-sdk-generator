@@ -1,0 +1,116 @@
+package cmd
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/spf13/cobra"
+	"golang.org/x/term"
+
+	"{{cliModule}}/internal/config"
+	"{{cliModule}}/internal/keyring"
+)
+
+var configureCmd = &cobra.Command{
+	Use:   "configure",
+	Short: "Set up credentials and store them securely in the OS keychain",
+	Long: `Interactively configure a connection profile for Blackboard LMS.
+
+Credentials (client ID and client secret) are stored in your operating
+system's secure keychain (macOS Keychain, Windows Credential Manager,
+or Linux secret-service). Non-secret settings (domain, profile name) are
+stored in ~/.bblms/config.yaml.
+
+You can create multiple named profiles:
+  {{binaryName}} configure                # set up the "default" profile
+  {{binaryName}} configure --profile dev   # set up a "dev" profile`,
+	RunE: runConfigure,
+}
+
+func init() {
+	rootCmd.AddCommand(configureCmd)
+}
+
+func runConfigure(cmd *cobra.Command, args []string) error {
+	profile := cfgProfile
+	if profile == "" {
+		profile = "default"
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+
+	// Load existing config for defaults
+	existing, _ := config.Load(profile)
+
+	fmt.Printf("Configuring profile: %s\n\n", profile)
+
+	// Domain
+	domainDefault := ""
+	if existing != nil && existing.Domain != "" {
+		domainDefault = existing.Domain
+	}
+	domain := prompt(reader, "Blackboard LMS domain", domainDefault)
+	if domain == "" {
+		return fmt.Errorf("domain is required")
+	}
+
+	// Client ID
+	clientIDDefault := ""
+	if existing != nil && existing.ClientID != "" {
+		clientIDDefault = existing.ClientID
+	}
+	clientID := prompt(reader, "OAuth2 Client ID", clientIDDefault)
+	if clientID == "" {
+		return fmt.Errorf("client ID is required")
+	}
+
+	// Client Secret (hidden input)
+	fmt.Print("OAuth2 Client Secret: ")
+	secretBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Println()
+	if err != nil {
+		return fmt.Errorf("failed to read secret: %w", err)
+	}
+	clientSecret := strings.TrimSpace(string(secretBytes))
+	if clientSecret == "" {
+		return fmt.Errorf("client secret is required")
+	}
+
+	// Store secrets in keyring
+	if err := keyring.StoreCredentials(profile, clientID, clientSecret); err != nil {
+		return fmt.Errorf("failed to store credentials in keychain: %w", err)
+	}
+
+	// Store non-secret config
+	cfg := &config.Profile{
+		Domain:   domain,
+		ClientID: clientID,
+		// ClientSecret is NOT stored in config file — it's in the keychain
+	}
+	if err := config.Save(profile, cfg); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	fmt.Printf("\nProfile '%s' configured successfully.\n", profile)
+	fmt.Printf("  Domain:    %s\n", domain)
+	fmt.Printf("  Client ID: %s\n", clientID)
+	fmt.Printf("  Secret:    stored in OS keychain\n")
+	fmt.Printf("\nTest your connection with: %s courses list\n", "{{binaryName}}")
+	return nil
+}
+
+func prompt(reader *bufio.Reader, label string, defaultVal string) string {
+	if defaultVal != "" {
+		fmt.Printf("%s [%s]: ", label, defaultVal)
+	} else {
+		fmt.Printf("%s: ", label)
+	}
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return defaultVal
+	}
+	return input
+}

@@ -54,12 +54,12 @@ jobs:
           git commit -m "chore: update vendored API spec $(date +%Y-%m-%d)"
           git push origin "$BRANCH"
           gh pr create \
-            --title "Update Blackboard Learn API spec ($(date +%Y-%m-%d))" \
+            --title "Update Blackboard LMS API spec ($(date +%Y-%m-%d))" \
             --body "$(cat <<'EOF'
           ## Upstream Spec Changes Detected
 
           The weekly spec check found differences between our vendored spec and
-          the upstream Blackboard Learn API specification.
+          the upstream Blackboard LMS API specification.
 
           ### Diff Summary
           $(cat spec-diff-output.txt)

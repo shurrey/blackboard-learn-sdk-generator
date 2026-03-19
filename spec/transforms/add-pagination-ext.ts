@@ -3,9 +3,16 @@
  * and annotate them with x-pagination extension.
  */
 
-function hasOffsetLimitParams(operation: any): boolean {
+function hasOffsetLimitParams(operation: any, spec: any): boolean {
   const params = operation.parameters ?? [];
-  const paramNames = params.map((p: any) => p.name);
+  const paramNames = params.map((p: any) => {
+    // Dereference $ref parameters to get the actual name
+    if (p.$ref) {
+      const resolved = resolveRef(p, spec);
+      return resolved?.name;
+    }
+    return p.name;
+  });
   return paramNames.includes('offset') && paramNames.includes('limit');
 }
 
@@ -64,7 +71,7 @@ export function addPaginationExtension(spec: any): any {
       const operation = pathItem[method];
       if (!operation) continue;
 
-      if (method === 'get' && hasOffsetLimitParams(operation) && returnsPaginatedShape(operation, spec)) {
+      if (method === 'get' && hasOffsetLimitParams(operation, spec) && returnsPaginatedShape(operation, spec)) {
         const itemSchema = getResultsItemSchema(operation, spec);
         operation['x-pagination'] = {
           style: 'offset',

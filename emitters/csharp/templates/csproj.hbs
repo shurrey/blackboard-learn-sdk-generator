@@ -8,10 +8,14 @@
     <PackageId>{{langConfig.packageName}}</PackageId>
     <Version>{{metadata.version}}</Version>
     <Authors>Blackboard</Authors>
-    <Description>C# SDK for the Blackboard Learn REST API</Description>
+    <Description>C# SDK for the Blackboard LMS REST API</Description>
     <PackageLicenseExpression>{{metadata.license}}</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/blackboard/learn-csharp</RepositoryUrl>
     <PackageTags>blackboard;learn;lms;sdk;education</PackageTags>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+  </ItemGroup>
 
 </Project>

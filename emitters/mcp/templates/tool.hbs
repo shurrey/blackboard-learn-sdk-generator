@@ -1,5 +1,5 @@
 """
-Blackboard Learn MCP tools: {{category}}.
+Blackboard LMS MCP tools: {{category}}.
 
 Auto-generated tool definitions for the {{category}} category.
 Each tool uses flat parameters with type hints for optimal agent ergonomics.
@@ -12,7 +12,7 @@ from typing import Literal
 
 from fastmcp import FastMCP
 
-from blackboard_learn_mcp.utils.formatters import (
+from blackboard_lms_mcp.utils.formatters import (
 {{#if (eq category "courses")}}
     format_course_list,
     format_course_detail,
@@ -37,7 +37,7 @@ from blackboard_learn_mcp.utils.formatters import (
     format_announcement,
 {{/if}}
 )
-from blackboard_learn_mcp.utils.error_handler import handle_api_error
+from blackboard_lms_mcp.utils.error_handler import handle_api_error
 
 logger = logging.getLogger(__name__)
 

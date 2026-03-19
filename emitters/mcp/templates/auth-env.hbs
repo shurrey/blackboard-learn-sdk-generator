@@ -1,11 +1,11 @@
 """
-Environment variable-based authentication for Blackboard Learn.
+Environment variable-based authentication for Blackboard LMS.
 
 Reads connection details from environment variables and creates an
 authenticated HTTP client using OAuth 2.0 client_credentials flow.
 
 Required environment variables:
-    BLACKBOARD_BASE_URL: The base URL of your Blackboard Learn instance
+    BLACKBOARD_BASE_URL: The base URL of your Blackboard LMS instance
         (e.g., "https://your-institution.blackboard.com")
     BLACKBOARD_CLIENT_ID: The OAuth 2.0 application key (client ID)
     BLACKBOARD_CLIENT_SECRET: The OAuth 2.0 application secret
@@ -30,7 +30,7 @@ TOKEN_ENDPOINT = "{{auth.twoLegged.tokenEndpoint}}"
 
 
 class BlackboardAuthClient:
-    """An HTTP client that handles Blackboard Learn OAuth 2.0 authentication.
+    """An HTTP client that handles Blackboard LMS OAuth 2.0 authentication.
 
     Automatically obtains and refreshes bearer tokens using the
     client_credentials grant type. All API requests include the
@@ -127,7 +127,7 @@ def get_auth_client() -> BlackboardAuthClient:
     if not base_url:
         raise ValueError(
             "BLACKBOARD_BASE_URL environment variable is required. "
-            "Set it to your Blackboard Learn instance URL "
+            "Set it to your Blackboard LMS instance URL "
             '(e.g., "https://your-institution.blackboard.com").'
         )
 

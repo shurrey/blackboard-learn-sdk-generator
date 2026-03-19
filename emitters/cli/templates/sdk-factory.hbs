@@ -1,0 +1,78 @@
+package sdk
+
+import (
+	"context"
+	"time"
+
+	lms "{{sdkModule}}"
+)
+
+// TokenInfo holds information about the current access token.
+type TokenInfo struct {
+	Domain    string
+	Token     string
+	ExpiresAt time.Time
+}
+
+// ClientWrapper wraps the SDK client with CLI-specific functionality.
+type ClientWrapper struct {
+	Client *learn.Client
+	domain string
+	auth   *learn.OAuth2Client
+	token  *TokenInfo
+}
+
+// NewClientWrapper creates a new SDK client wrapper.
+func NewClientWrapper(domain, clientID, clientSecret string) (*ClientWrapper, error) {
+	client := learn.NewClient(domain, clientID, clientSecret)
+
+	return &ClientWrapper{
+		Client: client,
+		domain: domain,
+	}, nil
+}
+
+// Authenticate acquires a two-legged OAuth token.
+func (w *ClientWrapper) Authenticate(ctx context.Context) (*TokenInfo, error) {
+	// The SDK handles authentication automatically on first request.
+	// Force authentication by making a token request.
+	token, err := w.Client.GetToken(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	info := &TokenInfo{
+		Domain:    w.domain,
+		Token:     token.AccessToken,
+		ExpiresAt: token.ExpiresAt,
+	}
+	w.token = info
+	return info, nil
+}
+
+// GetAuthURL generates a three-legged OAuth authorization URL with PKCE.
+func (w *ClientWrapper) GetAuthURL(redirectURI, state string) (authURL, codeVerifier string, err error) {
+	result, err := w.Client.GetAuthorizationURL(redirectURI, "", state)
+	if err != nil {
+		return "", "", err
+	}
+	return result.URL, result.CodeVerifier, nil
+}
+
+// ExchangeCode exchanges an authorization code for tokens.
+func (w *ClientWrapper) ExchangeCode(ctx context.Context, code, redirectURI, codeVerifier string) error {
+	return w.Client.ExchangeCode(ctx, code, redirectURI, codeVerifier)
+}
+
+// TokenStatus returns the current token info, if available.
+func (w *ClientWrapper) TokenStatus() (*TokenInfo, error) {
+	if w.token == nil {
+		return nil, fmt.Errorf("not authenticated")
+	}
+	return w.token, nil
+}
+
+// ClearToken clears the cached access token.
+func (w *ClientWrapper) ClearToken() {
+	w.token = nil
+}

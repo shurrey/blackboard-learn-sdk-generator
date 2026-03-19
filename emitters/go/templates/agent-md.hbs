@@ -4,7 +4,7 @@
 
 ## Overview
 
-This is the official Go SDK for the Blackboard Learn REST API. It provides typed functions for all API endpoints with built-in OAuth 2.0 authentication, pagination, retry logic, and error handling.
+This is the official Go SDK for the Blackboard LMS REST API. It provides typed functions for all API endpoints with built-in OAuth 2.0 authentication, pagination, retry logic, and error handling.
 
 **Version:** {{metadata.version}}
 **Runtime:** Go 1.24+
@@ -26,13 +26,13 @@ import (
     "fmt"
     "os"
 
-    bblearn "{{goModule}}"
+    bblms "{{goModule}}"
 )
 
 func main() {
-    client := bblearn.NewClient(
-        bblearn.WithDomain("your-institution.blackboard.com"),
-        bblearn.WithClientCredentials(
+    client := bblms.NewClient(
+        bblms.WithDomain("your-institution.blackboard.com"),
+        bblms.WithClientCredentials(
             os.Getenv("BB_CLIENT_ID"),
             os.Getenv("BB_CLIENT_SECRET"),
         ),
@@ -82,8 +82,8 @@ import "errors"
 
 course, err := client.Courses.Get(ctx, "invalid")
 if err != nil {
-    var notFound *bblearn.NotFoundError
-    var apiErr *bblearn.APIError
+    var notFound *bblms.NotFoundError
+    var apiErr *bblms.APIError
     if errors.As(err, &notFound) {
         // Handle 404
     } else if errors.As(err, &apiErr) {

@@ -1,0 +1,98 @@
+package cmd
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/spf13/cobra"
+
+	"{{cliModule}}/internal/config"
+	"{{cliModule}}/internal/output"
+	"{{cliModule}}/internal/sdk"
+)
+
+var (
+	cfgProfile   string
+	cfgDomain    string
+	cfgClientID  string
+	cfgSecret    string
+	outputFormat string
+)
+
+var rootCmd = &cobra.Command{
+	Use:   "{{binaryName}}",
+	Short: "Blackboard LMS CLI — manage your Learn instance from the terminal",
+	Long: `{{binaryName}} is a command-line interface for the Blackboard LMS REST API.
+
+Authenticate using 'bblms configure' to store credentials securely in your
+OS keychain. Credentials can also be provided via environment variables
+(BBLMS_DOMAIN, BBLMS_CLIENT_ID, BBLMS_CLIENT_SECRET) or flags.`,
+	SilenceUsage: true,
+}
+
+// Execute runs the root command.
+func Execute() {
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
+}
+
+func init() {
+	rootCmd.PersistentFlags().StringVar(&cfgProfile, "profile", "", "Configuration profile name (default: default)")
+	rootCmd.PersistentFlags().StringVar(&cfgDomain, "domain", "", "Blackboard LMS domain (e.g., learn.example.edu)")
+	rootCmd.PersistentFlags().StringVar(&cfgClientID, "client-id", "", "OAuth2 client ID")
+	rootCmd.PersistentFlags().StringVar(&cfgSecret, "client-secret", "", "OAuth2 client secret")
+	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "table", "Output format: table, json, yaml, csv")
+}
+
+// getClient returns a configured SDK client using credentials from flags, env, or keyring.
+func getClient() (*sdk.ClientWrapper, error) {
+	profile := cfgProfile
+	if profile == "" {
+		profile = os.Getenv("BBLMS_PROFILE")
+	}
+	if profile == "" {
+		profile = "default"
+	}
+
+	cfg, err := config.Load(profile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Flag overrides
+	if cfgDomain != "" {
+		cfg.Domain = cfgDomain
+	}
+	if cfgClientID != "" {
+		cfg.ClientID = cfgClientID
+	}
+	if cfgSecret != "" {
+		cfg.ClientSecret = cfgSecret
+	}
+
+	// Env var overrides
+	if v := os.Getenv("BBLMS_DOMAIN"); v != "" && cfgDomain == "" {
+		cfg.Domain = v
+	}
+	if v := os.Getenv("BBLMS_CLIENT_ID"); v != "" && cfgClientID == "" {
+		cfg.ClientID = v
+	}
+	if v := os.Getenv("BBLMS_CLIENT_SECRET"); v != "" && cfgSecret == "" {
+		cfg.ClientSecret = v
+	}
+
+	if cfg.Domain == "" {
+		return nil, fmt.Errorf("domain is required — run '%s configure' or set BBLMS_DOMAIN", "{{binaryName}}")
+	}
+	if cfg.ClientID == "" || cfg.ClientSecret == "" {
+		return nil, fmt.Errorf("credentials required — run '%s configure' or set BBLMS_CLIENT_ID / BBLMS_CLIENT_SECRET", "{{binaryName}}")
+	}
+
+	return sdk.NewClientWrapper(cfg.Domain, cfg.ClientID, cfg.ClientSecret)
+}
+
+// getFormatter returns an output formatter for the current output format.
+func getFormatter() *output.Formatter {
+	return output.NewFormatter(outputFormat)
+}

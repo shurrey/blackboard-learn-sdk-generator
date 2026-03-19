@@ -1,0 +1,36 @@
+version: 2
+
+project_name: {{binaryName}}
+
+builds:
+  - main: ./main.go
+    binary: {{binaryName}}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{{goTmpl ".Version"}}}
+
+archives:
+  - format: tar.gz
+    name_template: "{{binaryName}}_{{{goTmpl ".Version"}}}_{{{goTmpl ".Os"}}}_{{{goTmpl ".Arch"}}}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: 'checksums.txt'
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'

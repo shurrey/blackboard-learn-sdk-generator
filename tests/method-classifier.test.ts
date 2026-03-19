@@ -22,9 +22,9 @@ describe('classifyMethod', () => {
     expect(result).toEqual({ kind: 'update', name: 'update' });
   });
 
-  it('classifies PUT as update', () => {
+  it('classifies PUT as replace', () => {
     const result = classifyMethod({ httpMethod: 'PUT', path: '/courses/{courseId}' });
-    expect(result).toEqual({ kind: 'update', name: 'update' });
+    expect(result).toEqual({ kind: 'replace', name: 'replace' });
   });
 
   it('classifies DELETE as delete', () => {

@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "blackboard-learn-mcp"
+name = "blackboard-lms-mcp"
 version = "{{metadata.version}}"
-description = "MCP server for Blackboard Learn REST API - provides AI agents with tools to interact with Blackboard Learn LMS"
+description = "MCP server for Blackboard LMS REST API - provides AI agents with tools to interact with Blackboard LMS LMS"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
@@ -39,16 +39,16 @@ dev = [
 ]
 
 [project.scripts]
-blackboard-learn-mcp = "blackboard_learn_mcp.server:main"
+blackboard-lms-mcp = "blackboard_lms_mcp.server:main"
 
 [project.urls]
-Homepage = "https://github.com/blackboard/blackboard-learn-mcp"
+Homepage = "https://github.com/blackboard/blackboard-lms-mcp"
 Documentation = "https://developer.blackboard.com"
-Repository = "https://github.com/blackboard/blackboard-learn-mcp"
-Issues = "https://github.com/blackboard/blackboard-learn-mcp/issues"
+Repository = "https://github.com/blackboard/blackboard-lms-mcp"
+Issues = "https://github.com/blackboard/blackboard-lms-mcp/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/blackboard_learn_mcp"]
+packages = ["src/blackboard_lms_mcp"]
 
 [tool.ruff]
 target-version = "py310"

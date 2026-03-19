@@ -25,7 +25,7 @@ export class PythonEmitter extends BaseEmitter {
     files.set('pyproject-toml', 'pyproject.toml');
 
     // Core package files
-    const pkg = 'src/blackboard_learn';
+    const pkg = 'src/blackboard_lms';
     files.set('init', `${pkg}/__init__.py`);
     files.set('client', `${pkg}/client.py`);
     files.set('http-client', `${pkg}/_http_client.py`);
@@ -170,7 +170,7 @@ export class PythonEmitter extends BaseEmitter {
     if (templateName.startsWith('integration:')) {
       return {
         ...base,
-        resources: this.flattenResources().filter(r => r.methods.length > 0),
+        resources: this.getIntegrationTestResources(),
       };
     }
 

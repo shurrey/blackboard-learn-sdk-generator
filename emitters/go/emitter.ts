@@ -14,7 +14,7 @@ export class GoEmitter extends BaseEmitter {
 
   constructor(ir: SDKIR, langConfig: any, options: EmitterOptions) {
     super(ir, langConfig, options);
-    this.goModule = langConfig.module ?? 'github.com/blackboard/learn-go';
+    this.goModule = langConfig.module ?? 'github.com/blackboard/lms-go';
   }
 
   get language(): string {
@@ -116,7 +116,7 @@ export class GoEmitter extends BaseEmitter {
     if (templateName.startsWith('integration:')) {
       return {
         ...base,
-        resources: this.flattenResources().filter(r => r.methods.length > 0),
+        resources: this.getIntegrationTestResources(),
       };
     }
 

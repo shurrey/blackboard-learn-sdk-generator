@@ -24,7 +24,7 @@ export interface BuilderConfig {
 }
 
 const DEFAULT_CONFIG: BuilderConfig = {
-  name: 'blackboard-learn',
+  name: 'blackboard-lms',
   version: '1.0.0',
   license: 'Apache-2.0',
   baseUrl: 'https://{domain}/learn/api/public',
@@ -125,15 +125,39 @@ export class IRBuilder {
       const methodName = disambiguateMethodName(classification.name, path, usedNames);
       usedNames.add(methodName);
 
-      // Build parameters
-      const pathParams = this.buildParameters(operation.parameters?.filter((p: any) => p.in === 'path') ?? []);
-      const queryParams = this.buildParameters(operation.parameters?.filter((p: any) => p.in === 'query') ?? []);
+      // Build parameters — dereference $ref pointers before filtering by location
+      const resolvedParams = (operation.parameters ?? []).map((p: any) => this.derefParam(p));
+      // Deduplicate by name+location (path-level and operation-level params may overlap)
+      const seen = new Set<string>();
+      const dedupedParams = resolvedParams.filter((p: any) => {
+        const key = `${p.name}:${p.in}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      const pathParams = this.buildParameters(dedupedParams.filter((p: any) => p.in === 'path'));
+      const queryParams = this.buildParameters(dedupedParams.filter((p: any) => p.in === 'query'));
 
-      // Build request body
-      const requestBody = this.buildRequestBody(operation.requestBody);
+      // Build request body — dereference $ref if needed
+      let requestBody = this.buildRequestBody(this.derefParam(operation.requestBody));
 
-      // Build response
-      const response = this.buildResponse(operation.responses);
+      // Detect multipart file uploads from description when requestBody is missing
+      // (some Swagger 2.0 specs describe uploads in prose without formal parameters)
+      if (!requestBody && httpMethod === 'POST') {
+        const desc = (operation.description ?? '').toLowerCase();
+        if (desc.includes('multipart/form-data') || desc.includes('rfc 1867') || desc.includes('upload a file')) {
+          requestBody = {
+            contentType: 'multipart/form-data',
+            required: true,
+            type: { kind: 'primitive', type: 'string', format: 'binary' },
+            description: 'File to upload',
+            binary: true,
+          };
+        }
+      }
+
+      // Build response — dereference $ref in individual response entries
+      const response = this.buildResponse(this.derefResponses(operation.responses));
 
       // Detect pagination
       const { paginated, config: paginationConfig } = detectPagination(operation, this.spec, this.resolver);
@@ -228,8 +252,8 @@ export class IRBuilder {
       return { statusCode: 200, type: { kind: 'void' } };
     }
 
-    // Find the success response (2xx)
-    for (const code of ['200', '201', '202', '204']) {
+    // Find the success response (2xx or 3xx redirect for downloads)
+    for (const code of ['200', '201', '202', '204', '302']) {
       const response = responses[code];
       if (!response) continue;
 
@@ -238,6 +262,17 @@ export class IRBuilder {
       if (binaryContent) {
         return {
           statusCode: parseInt(code),
+          contentType: 'application/octet-stream',
+          type: { kind: 'primitive', type: 'string', format: 'binary' },
+          description: response.description,
+          binary: true,
+        };
+      }
+
+      // Check for redirect-based downloads (302 with Location header, no content body)
+      if (code === '302' && response.headers?.Location) {
+        return {
+          statusCode: 302,
           contentType: 'application/octet-stream',
           type: { kind: 'primitive', type: 'string', format: 'binary' },
           description: response.description,
@@ -313,9 +348,36 @@ export class IRBuilder {
   private buildIdFormatConfig(): IdFormatConfig {
     return {
       formats: this.config.idFormats ?? DEFAULT_CONFIG.idFormats!,
-      description: 'Blackboard Learn supports multiple ID formats. Primary keys are numeric. ' +
+      description: 'Blackboard LMS supports multiple ID formats. Primary keys are numeric. ' +
         'Alternative lookups use prefixed formats: externalId:{id}, userName:{name}, uuid:{uuid}.',
     };
+  }
+
+  /**
+   * Dereference a $ref pointer (parameters, requestBodies, etc.).
+   * Returns the resolved object, or the original if not a $ref.
+   */
+  private derefParam(obj: any): any {
+    if (!obj?.$ref) return obj ?? {};
+
+    const refPath = obj.$ref.replace('#/', '').split('/');
+    let current = this.spec;
+    for (const segment of refPath) {
+      current = current?.[segment];
+    }
+    return current ?? obj;
+  }
+
+  /**
+   * Dereference any $ref entries within a responses object.
+   */
+  private derefResponses(responses: any): any {
+    if (!responses) return responses;
+    const result: any = {};
+    for (const [code, response] of Object.entries(responses)) {
+      result[code] = this.derefParam(response);
+    }
+    return result;
   }
 
   private toCamelCase(str: string): string {

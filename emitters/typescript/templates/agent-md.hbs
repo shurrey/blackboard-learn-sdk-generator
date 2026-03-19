@@ -4,7 +4,7 @@
 
 ## Overview
 
-This is the official TypeScript/JavaScript SDK for the Blackboard Learn REST API. It provides typed methods for all API endpoints with built-in OAuth 2.0 authentication, pagination, retry logic, and error handling.
+This is the official TypeScript/JavaScript SDK for the Blackboard LMS REST API. It provides typed methods for all API endpoints with built-in OAuth 2.0 authentication, pagination, retry logic, and error handling.
 
 **Version:** {{metadata.version}}
 **Runtime:** Node.js 22+
@@ -19,9 +19,9 @@ npm install {{langConfig.packageName}}
 ## Quick Start
 
 ```typescript
-import { BlackboardLearnClient } from '{{langConfig.packageName}}';
+import { BlackboardLMSClient } from '{{langConfig.packageName}}';
 
-const client = new BlackboardLearnClient({
+const client = new BlackboardLMSClient({
   domain: 'your-institution.blackboard.com',
   clientId: process.env.BB_CLIENT_ID!,
   clientSecret: process.env.BB_CLIENT_SECRET!,

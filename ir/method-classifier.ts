@@ -31,6 +31,8 @@ export function classifyMethod(input: ClassificationInput): { kind: MethodKind; 
       return { kind: 'create', name: 'create' };
 
     case 'PUT':
+      return { kind: 'replace', name: 'replace' };
+
     case 'PATCH':
       return { kind: 'update', name: 'update' };
 

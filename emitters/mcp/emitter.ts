@@ -1,6 +1,6 @@
 /**
  * MCP Server emitter.
- * Generates a Python FastMCP server project that exposes Blackboard Learn
+ * Generates a Python FastMCP server project that exposes Blackboard LMS
  * REST API operations as MCP tools for AI agents.
  *
  * Unlike the SDK emitters (Python, TypeScript, etc.) which generate a 1-to-1
@@ -127,15 +127,15 @@ export class MCPEmitter extends BaseEmitter {
     const files = new Map<string, string>();
 
     // Package init
-    files.set('init', 'src/blackboard_learn_mcp/__init__.py');
+    files.set('init', 'src/blackboard_lms_mcp/__init__.py');
 
     // Main server
-    files.set('server', 'src/blackboard_learn_mcp/server.py');
+    files.set('server', 'src/blackboard_lms_mcp/server.py');
 
     // Tool modules by category
     const categories = this.getCategories();
     for (const category of categories) {
-      files.set(`tool:${category}`, `src/blackboard_learn_mcp/tools/${category}.py`);
+      files.set(`tool:${category}`, `src/blackboard_lms_mcp/tools/${category}.py`);
     }
 
     // Test files — one per tool category
@@ -144,16 +144,16 @@ export class MCPEmitter extends BaseEmitter {
     }
 
     // Auth modules
-    files.set('auth-env', 'src/blackboard_learn_mcp/auth/env_auth.py');
-    files.set('auth-oauth', 'src/blackboard_learn_mcp/auth/oauth_auth.py');
+    files.set('auth-env', 'src/blackboard_lms_mcp/auth/env_auth.py');
+    files.set('auth-oauth', 'src/blackboard_lms_mcp/auth/oauth_auth.py');
 
     // Utility modules
-    files.set('formatter', 'src/blackboard_learn_mcp/utils/formatters.py');
-    files.set('error-handler', 'src/blackboard_learn_mcp/utils/error_handler.py');
+    files.set('formatter', 'src/blackboard_lms_mcp/utils/formatters.py');
+    files.set('error-handler', 'src/blackboard_lms_mcp/utils/error_handler.py');
 
     // MCP resources and prompts
-    files.set('resource-mcp', 'src/blackboard_learn_mcp/resources.py');
-    files.set('prompt', 'src/blackboard_learn_mcp/prompts.py');
+    files.set('resource-mcp', 'src/blackboard_lms_mcp/resources.py');
+    files.set('prompt', 'src/blackboard_lms_mcp/prompts.py');
 
     // Build config
     files.set('pyproject-toml', 'pyproject.toml');

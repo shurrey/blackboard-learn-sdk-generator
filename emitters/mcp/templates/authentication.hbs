@@ -1,6 +1,6 @@
 # Authentication
 
-The Blackboard Learn MCP server supports multiple authentication modes for connecting to the Blackboard Learn REST API.
+The Blackboard LMS MCP server supports multiple authentication modes for connecting to the Blackboard LMS REST API.
 
 ## Overview
 
@@ -38,8 +38,8 @@ export BLACKBOARD_CLIENT_SECRET="your-application-secret"
 ```json
 {
   "mcpServers": {
-    "blackboard-learn": {
-      "command": "blackboard-learn-mcp",
+    "blackboard-lms": {
+      "command": "blackboard-lms-mcp",
       "env": {
         "BLACKBOARD_BASE_URL": "https://your-institution.blackboard.com",
         "BLACKBOARD_CLIENT_ID": "your-application-key",
@@ -76,8 +76,8 @@ export BLACKBOARD_API_TOKEN="your-bearer-token"
 ```json
 {
   "mcpServers": {
-    "blackboard-learn": {
-      "command": "blackboard-learn-mcp",
+    "blackboard-lms": {
+      "command": "blackboard-lms-mcp",
       "env": {
         "BLACKBOARD_BASE_URL": "https://your-institution.blackboard.com",
         "BLACKBOARD_API_TOKEN": "your-bearer-token"
@@ -97,7 +97,7 @@ export BLACKBOARD_API_TOKEN="your-bearer-token"
 
 ## Authorization Code + PKCE (Three-Legged OAuth)
 
-When `BLACKBOARD_REDIRECT_URI` is set, the server enables three-legged OAuth, allowing it to act on behalf of a specific Blackboard Learn user. This is useful when the AI agent needs access to user-specific data (e.g., "my courses", "my grades").
+When `BLACKBOARD_REDIRECT_URI` is set, the server enables three-legged OAuth, allowing it to act on behalf of a specific Blackboard LMS user. This is useful when the AI agent needs access to user-specific data (e.g., "my courses", "my grades").
 
 ### When to Use
 
@@ -222,7 +222,7 @@ The agent can call `learn_auth_status` at any time to check:
 
 | Variable | Required | Description |
 |---|---|---|
-| `BLACKBOARD_BASE_URL` | Yes | Blackboard Learn instance URL (e.g., `https://your-institution.blackboard.com`) |
+| `BLACKBOARD_BASE_URL` | Yes | Blackboard LMS instance URL (e.g., `https://your-institution.blackboard.com`) |
 | `BLACKBOARD_CLIENT_ID` | Yes* | OAuth 2.0 application key |
 | `BLACKBOARD_CLIENT_SECRET` | Yes* | OAuth 2.0 application secret |
 | `BLACKBOARD_API_TOKEN` | No | Pre-obtained bearer token (overrides client_credentials) |

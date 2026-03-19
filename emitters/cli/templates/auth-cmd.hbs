@@ -1,0 +1,188 @@
+package cmd
+
+import (
+	"context"
+	"fmt"
+	"net"
+	"net/http"
+	"os/exec"
+	"runtime"
+	"time"
+
+	"github.com/spf13/cobra"
+)
+
+var authBrowser bool
+
+var authCmd = &cobra.Command{
+	Use:   "auth",
+	Short: "Manage authentication",
+}
+
+var authLoginCmd = &cobra.Command{
+	Use:   "login",
+	Short: "Authenticate and cache an access token",
+	Long: `Authenticate with Blackboard LMS and cache the access token.
+
+By default, uses two-legged OAuth (client credentials). Use --browser to
+start a three-legged OAuth flow that opens a browser for user authorization.
+
+  {{binaryName}} auth login              # 2LO client credentials
+  {{binaryName}} auth login --browser    # 3LO authorization code + PKCE`,
+	RunE: runAuthLogin,
+}
+
+var authStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show current authentication status",
+	RunE:  runAuthStatus,
+}
+
+var authLogoutCmd = &cobra.Command{
+	Use:   "logout",
+	Short: "Clear cached access tokens",
+	RunE:  runAuthLogout,
+}
+
+func init() {
+	rootCmd.AddCommand(authCmd)
+	authCmd.AddCommand(authLoginCmd)
+	authCmd.AddCommand(authStatusCmd)
+	authCmd.AddCommand(authLogoutCmd)
+
+	authLoginCmd.Flags().BoolVar(&authBrowser, "browser", false, "Use three-legged OAuth (opens browser)")
+}
+
+func runAuthLogin(cmd *cobra.Command, args []string) error {
+	wrapper, err := getClient()
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	if authBrowser {
+		return runThreeLeggedAuth(ctx, wrapper)
+	}
+
+	// Two-legged: just acquire a token
+	token, err := wrapper.Authenticate(ctx)
+	if err != nil {
+		return fmt.Errorf("authentication failed: %w", err)
+	}
+
+	fmt.Printf("Authenticated successfully.\n")
+	fmt.Printf("  Token expires: %s\n", token.ExpiresAt.Format(time.RFC3339))
+	return nil
+}
+
+func runThreeLeggedAuth(ctx context.Context, wrapper interface{ GetAuthURL(redirectURI, state string) (string, string, error); ExchangeCode(ctx context.Context, code, redirectURI, codeVerifier string) error }) error {
+	// Start a local callback server
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return fmt.Errorf("failed to start callback server: %w", err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	redirectURI := fmt.Sprintf("http://127.0.0.1:%d/callback", port)
+
+	authURL, codeVerifier, err := wrapper.GetAuthURL(redirectURI, "cli-auth")
+	if err != nil {
+		listener.Close()
+		return fmt.Errorf("failed to generate auth URL: %w", err)
+	}
+
+	codeCh := make(chan string, 1)
+	errCh := make(chan error, 1)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+		code := r.URL.Query().Get("code")
+		if code == "" {
+			errCh <- fmt.Errorf("no authorization code received")
+			fmt.Fprintf(w, "<html><body><h1>Error</h1><p>No authorization code received.</p></body></html>")
+			return
+		}
+		codeCh <- code
+		fmt.Fprintf(w, "<html><body><h1>Success</h1><p>You can close this window.</p></body></html>")
+	})
+
+	server := &http.Server{Handler: mux}
+	go func() {
+		if err := server.Serve(listener); err != http.ErrServerClosed {
+			errCh <- err
+		}
+	}()
+
+	// Open browser
+	fmt.Printf("Opening browser for authorization...\n")
+	fmt.Printf("If the browser doesn't open, visit:\n  %s\n\n", authURL)
+	openBrowser(authURL)
+
+	// Wait for callback
+	select {
+	case code := <-codeCh:
+		server.Shutdown(ctx)
+		if err := wrapper.ExchangeCode(ctx, code, redirectURI, codeVerifier); err != nil {
+			return fmt.Errorf("token exchange failed: %w", err)
+		}
+		fmt.Printf("Authenticated successfully via browser.\n")
+		return nil
+	case err := <-errCh:
+		server.Shutdown(ctx)
+		return err
+	case <-ctx.Done():
+		server.Shutdown(context.Background())
+		return fmt.Errorf("authentication timed out")
+	}
+}
+
+func runAuthStatus(cmd *cobra.Command, args []string) error {
+	wrapper, err := getClient()
+	if err != nil {
+		return err
+	}
+
+	status, err := wrapper.TokenStatus()
+	if err != nil {
+		fmt.Println("Not authenticated. Run: {{binaryName}} auth login")
+		return nil
+	}
+
+	fmt.Printf("Authentication status:\n")
+	fmt.Printf("  Domain:     %s\n", status.Domain)
+	fmt.Printf("  Token:      %s...%s\n", status.Token[:8], status.Token[len(status.Token)-4:])
+	fmt.Printf("  Expires:    %s\n", status.ExpiresAt.Format(time.RFC3339))
+	if status.ExpiresAt.Before(time.Now()) {
+		fmt.Printf("  Status:     expired\n")
+	} else {
+		fmt.Printf("  Status:     valid (expires in %s)\n", time.Until(status.ExpiresAt).Round(time.Second))
+	}
+	return nil
+}
+
+func runAuthLogout(cmd *cobra.Command, args []string) error {
+	wrapper, err := getClient()
+	if err != nil {
+		return err
+	}
+
+	wrapper.ClearToken()
+	fmt.Println("Cached tokens cleared.")
+	return nil
+}
+
+func openBrowser(url string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "linux":
+		cmd = exec.Command("xdg-open", url)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	default:
+		return
+	}
+	cmd.Start()
+}

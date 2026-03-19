@@ -29,6 +29,16 @@ class {{PascalCase resource.name}}ResourceTest {
     {{#unless paginated}}
     @Test
     void {{camelCase name}}_sendsCorrectRequest() throws Exception {
+        {{#isUpload this}}
+        when(mockClient.uploadFile(anyString(), anyMap(), anyString(), anyString(), any(byte[].class), anyString(), any())).thenReturn(null);
+        resource.{{camelCase name}}({{#each pathParams}}{{javaTestValue this}}, {{/each}}"file", "test.txt", new byte[0], "application/octet-stream");
+        verify(mockClient).uploadFile(eq("{{{path}}}"), anyMap(), anyString(), anyString(), any(byte[].class), anyString(), any());
+        {{else}}
+        {{#isDownload this}}
+        when(mockClient.downloadFile(anyString(), anyMap())).thenReturn(null);
+        resource.{{camelCase name}}({{#each pathParams}}{{javaTestValue this}}{{#unless @last}}, {{/unless}}{{/each}});
+        verify(mockClient).downloadFile(eq("{{{path}}}"), anyMap());
+        {{else}}
         {{#if (eq (lowercase httpMethod) "get")}}
         when(mockClient.get(anyString(), anyMap(), any())).thenReturn(null);
         resource.{{camelCase name}}({{#each pathParams}}{{javaTestValue this}}{{#unless @last}}, {{/unless}}{{/each}});
@@ -50,6 +60,8 @@ class {{PascalCase resource.name}}ResourceTest {
         resource.{{camelCase name}}({{#each pathParams}}{{javaTestValue this}}{{#unless @last}}, {{/unless}}{{/each}});
         verify(mockClient).delete(eq("{{{path}}}"), anyMap());
         {{/if}}
+        {{/isDownload}}
+        {{/isUpload}}
     }
     {{/unless}}
 

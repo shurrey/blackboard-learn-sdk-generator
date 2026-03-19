@@ -13,12 +13,22 @@ RSpec.describe {{moduleName}}::{{PascalCase resource.name}}Resource do
     allow(mock_client).to receive(:put).and_return({})
     allow(mock_client).to receive(:patch).and_return({})
     allow(mock_client).to receive(:delete).and_return(nil)
+    allow(mock_client).to receive(:download_file).and_return("")
+    allow(mock_client).to receive(:upload_file).and_return({})
   end
 
 {{#each resource.methods}}
   {{#unless paginated}}
   describe "#{{snakeCase name}}" do
     it "sends the correct request" do
+      {{#isUpload this}}
+      resource.{{snakeCase name}}({{#each pathParams}}"test-id", {{/each}}"test")
+      expect(mock_client).to have_received(:upload_file).once
+      {{else}}
+      {{#isDownload this}}
+      resource.{{snakeCase name}}({{#each pathParams}}"test-id"{{#unless @last}}, {{/unless}}{{/each}})
+      expect(mock_client).to have_received(:download_file).once
+      {{else}}
       {{#if (eq (lowercase httpMethod) "get")}}
       resource.{{snakeCase name}}({{#each pathParams}}"test-id"{{#unless @last}}, {{/unless}}{{/each}})
       expect(mock_client).to have_received(:get).once
@@ -35,6 +45,8 @@ RSpec.describe {{moduleName}}::{{PascalCase resource.name}}Resource do
       resource.{{snakeCase name}}({{#each pathParams}}"test-id"{{#unless @last}}, {{/unless}}{{/each}})
       expect(mock_client).to have_received(:delete).once
       {{/if}}
+      {{/isDownload}}
+      {{/isUpload}}
     end
   end
   {{/unless}}

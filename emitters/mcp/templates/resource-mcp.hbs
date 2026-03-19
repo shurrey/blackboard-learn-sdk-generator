@@ -1,5 +1,5 @@
 """
-MCP Resources — read-only URI-addressable data for Blackboard Learn.
+MCP Resources — read-only URI-addressable data for Blackboard LMS.
 
 Auto-generated — do not edit manually.
 """
@@ -50,4 +50,4 @@ def register_resources(mcp: FastMCP, get_client):
         minor = response.get("learn", {}).get("minor", "?")
         patch = response.get("learn", {}).get("patch", "?")
         build = response.get("learn", {}).get("build", "?")
-        return f"# System Version\n\nBlackboard Learn {major}.{minor}.{patch} (Build: {build})"
+        return f"# System Version\n\nBlackboard LMS {major}.{minor}.{patch} (Build: {build})"

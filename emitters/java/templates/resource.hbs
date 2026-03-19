@@ -5,7 +5,9 @@ import {{basePackage}}.PaginatedIterator;
 import {{basePackage}}.types.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 
 /**
  * {{PascalCase resource.name}} resource.
@@ -43,7 +45,7 @@ public class {{PascalCase resource.name}}Resource {
     public Object {{camelCase name}}({{#each pathParams}}String {{camelCase name}}, {{/each}}String fieldName, String filename, byte[] fileData, String contentType) {
         Map<String, String> pathParams = new HashMap<>();
         {{#each pathParams}}
-        pathParams.put("{{name}}", String.valueOf({{camelCase name}}));
+        pathParams.put("{{name}}", {{javaParamToString this}});
         {{/each}}
         return client.uploadFile("{{{path}}}", pathParams, fieldName, filename, fileData, contentType, Object.class);
     }
@@ -52,7 +54,7 @@ public class {{PascalCase resource.name}}Resource {
     public HttpClient.FileDownload {{camelCase name}}({{#each pathParams}}String {{camelCase name}}{{#unless @last}}, {{/unless}}{{/each}}) {
         Map<String, String> pathParams = new HashMap<>();
         {{#each pathParams}}
-        pathParams.put("{{name}}", String.valueOf({{camelCase name}}));
+        pathParams.put("{{name}}", {{javaParamToString this}});
         {{/each}}
         return client.downloadFile("{{{path}}}", pathParams);
     }
@@ -61,7 +63,7 @@ public class {{PascalCase resource.name}}Resource {
     public Iterator<{{javaType paginationConfig.itemType}}> {{camelCase name}}({{javaMethodParams this}}) {
         Map<String, String> pathParams = new HashMap<>();
         {{#each pathParams}}
-        pathParams.put("{{name}}", String.valueOf({{camelCase name}}));
+        pathParams.put("{{name}}", {{javaParamToString this}});
         {{/each}}
         return new PaginatedIterator<>(client, "{{{path}}}", pathParams, {{javaClassLiteral paginationConfig.itemType}});
     }
@@ -69,7 +71,7 @@ public class {{PascalCase resource.name}}Resource {
     public {{javaReturnType this}} {{camelCase name}}({{javaMethodParams this}}) {
         Map<String, String> pathParams = new HashMap<>();
         {{#each pathParams}}
-        pathParams.put("{{name}}", String.valueOf({{camelCase name}}));
+        pathParams.put("{{name}}", {{javaParamToString this}});
         {{/each}}
         {{#if (eq (lowercase httpMethod) "delete")}}
         client.delete("{{{path}}}", pathParams);

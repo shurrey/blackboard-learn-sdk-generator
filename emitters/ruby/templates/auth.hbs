@@ -29,7 +29,7 @@ module {{moduleName}}
 
     # Revoke the current access token by clearing local state.
     #
-    # Note: Blackboard Learn does not expose an RFC 7009 revocation endpoint,
+    # Note: Blackboard LMS does not expose an RFC 7009 revocation endpoint,
     # so this only clears the locally cached token and expiry.
     def revoke_token
       @mutex.synchronize do

@@ -103,6 +103,22 @@ export function buildResourceTree(spec: any): ResourceNode {
       if (!verOps.has(ver)) {
         verOps.set(ver, []);
       }
+      // Merge path-level parameters into operation parameters.
+      // OpenAPI: path item parameters are inherited by all operations unless overridden.
+      const pathLevelParams = pathItem.parameters ?? [];
+      if (pathLevelParams.length > 0 && operation.parameters) {
+        // Operation params override path-level params with the same name+in
+        const opParamKeys = new Set(
+          operation.parameters.map((p: any) => `${p.name ?? p.$ref}:${p.in ?? ''}`)
+        );
+        const inherited = pathLevelParams.filter(
+          (p: any) => !opParamKeys.has(`${p.name ?? p.$ref}:${p.in ?? ''}`)
+        );
+        operation.parameters = [...operation.parameters, ...inherited];
+      } else if (pathLevelParams.length > 0 && !operation.parameters) {
+        operation.parameters = [...pathLevelParams];
+      }
+
       verOps.get(ver)!.push({ path: apiPath, method, operation, resourceSegments });
     }
   }
