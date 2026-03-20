@@ -5,6 +5,7 @@ spec/cache/
 !spec/vendored/
 *.js
 *.d.ts
+!types/*.d.ts
 *.js.map
 !bin/generate.js
 .env

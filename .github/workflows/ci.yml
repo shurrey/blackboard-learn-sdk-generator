@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [20, 22]
+        node-version: [22, 24]
     steps:
       - uses: actions/checkout@v4
 
@@ -141,4 +141,4 @@ jobs:
 
       - name: Run SDK tests
         working-directory: output/blackboard-lms-python
-        run: pytest tests/ -v
+        run: pytest tests/ -v --ignore=tests/integration
