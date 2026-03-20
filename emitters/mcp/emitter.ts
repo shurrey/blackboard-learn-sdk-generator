@@ -132,6 +132,11 @@ export class MCPEmitter extends BaseEmitter {
     // Main server
     files.set('server', 'src/blackboard_lms_mcp/server.py');
 
+    // Subpackage __init__.py files
+    files.set('tools-init', 'src/blackboard_lms_mcp/tools/__init__.py');
+    files.set('auth-init', 'src/blackboard_lms_mcp/auth/__init__.py');
+    files.set('utils-init', 'src/blackboard_lms_mcp/utils/__init__.py');
+
     // Tool modules by category
     const categories = this.getCategories();
     for (const category of categories) {
@@ -220,6 +225,10 @@ export class MCPEmitter extends BaseEmitter {
       const category = templateName.slice('tool:'.length);
       const actualTemplate = category === 'dynamic' ? 'dynamic-tool' : 'tool';
       return this.loadTemplate(actualTemplate)(context);
+    }
+    // Subpackage __init__.py files are empty
+    if (templateName.endsWith('-init') && templateName !== 'init') {
+      return '';
     }
     return super.renderTemplate(templateName, context);
   }

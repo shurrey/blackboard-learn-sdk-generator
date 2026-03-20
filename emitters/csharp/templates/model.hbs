@@ -22,7 +22,7 @@ public record {{model.name}}
 {{/if}}
 {{/if}}
     [JsonPropertyName("{{name}}")]
-    public {{#if required}}{{csType type}}{{else}}{{csNullableType type}}{{/if}} {{PascalCase name}} { get; init; }
+    public {{#if required}}{{csType type}}{{else}}{{csNullableType type}}{{/if}} {{PascalCase name}} { get; init; }{{#if required}}{{#unless (csIsValueType type)}} = default!;{{/unless}}{{/if}}
 
 {{/each}}
 }

@@ -33,7 +33,7 @@ public class LearnHttpClient : IDisposable
         HttpStatusCode.GatewayTimeout
     };
 
-    protected LearnHttpClient() { _jsonOptions = new(); }
+    protected LearnHttpClient() { _baseUrl = null!; _authClient = null!; _httpClient = null!; _logLevel = null!; _jsonOptions = new(); }
 
     public LearnHttpClient(string baseUrl, TimeSpan timeout, int maxRetries, OAuth2Client authClient, ILogger? logger = null, string logLevel = "none")
     {

@@ -56,6 +56,11 @@ export function typeRefToNullable(type: TypeRef): string {
 export function registerCSharpHelpers(handlebars: typeof import('handlebars')): void {
   handlebars.registerHelper('csType', (type: TypeRef) => typeRefToCSharp(type));
   handlebars.registerHelper('csNullableType', (type: TypeRef) => typeRefToNullable(type));
+  handlebars.registerHelper('csIsValueType', (type: TypeRef) => {
+    const csType = typeRefToCSharp(type);
+    const valueTypes = ['int', 'long', 'double', 'float', 'bool', 'DateTimeOffset'];
+    return valueTypes.includes(csType);
+  });
   handlebars.registerHelper('csMethodParams', function (this: any, method: any) {
     const parts: string[] = [];
     for (const param of method.pathParams ?? []) {

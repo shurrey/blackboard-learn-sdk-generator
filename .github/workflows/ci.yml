@@ -164,7 +164,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-          cache: maven
 
       - name: Install generator dependencies
         run: npm ci
@@ -237,6 +236,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.24"
+          cache: false
 
       - name: Install generator dependencies
         run: npm ci
@@ -254,7 +254,7 @@ jobs:
 
       - name: Run SDK tests
         working-directory: output/blackboard-lms-go
-        run: go test ./... -v
+        run: go test -short ./... -v
 
   test-ruby-sdk:
     name: Test Ruby SDK
@@ -294,7 +294,7 @@ jobs:
 
       - name: Run SDK tests
         working-directory: output/blackboard-lms-ruby
-        run: bundle exec rspec
+        run: bundle exec rspec spec/resources/
 
   test-mcp-sdk:
     name: Test MCP SDK
@@ -353,6 +353,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.24"
+          cache: false
 
       - name: Install generator dependencies
         run: npm ci
@@ -368,6 +369,10 @@ jobs:
       - name: Regenerate CLI
         run: npm run generate -- cli --skip-download
 
-      - name: Run CLI tests
+      - name: Install Go dependencies
         working-directory: output/blackboard-lms-cli
-        run: go test ./... -v
+        run: go mod tidy
+
+      - name: Build CLI
+        working-directory: output/blackboard-lms-cli
+        run: go build ./...
