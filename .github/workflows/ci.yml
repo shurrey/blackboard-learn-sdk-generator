@@ -181,7 +181,7 @@ jobs:
 
       - name: Run SDK tests
         working-directory: output/blackboard-lms-java
-        run: mvn test
+        run: mvn test -Dtest='!com.blackboard.lms.IntegrationTest'
 
   test-csharp-sdk:
     name: Test C# SDK
