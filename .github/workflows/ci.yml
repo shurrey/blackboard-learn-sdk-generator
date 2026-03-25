@@ -231,6 +231,11 @@ jobs:
       - name: Regenerate C# SDK
         run: npm run generate -- csharp --skip-download
 
+      - name: Start Prism mock server
+        run: |
+          npx @stoplight/prism-cli mock spec/cache/openapi3.json --port 4010 --host 127.0.0.1 --dynamic &
+          sleep 3
+
       - name: Run SDK tests
         working-directory: output/blackboard-lms-csharp
         run: dotnet test
