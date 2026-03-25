@@ -127,8 +127,18 @@ export function registerCLIHelpers(handlebars: typeof import('handlebars')): voi
   handlebars.registerHelper('cobraFlagType', (param: Parameter) => cobraFlagType(param));
   handlebars.registerHelper('cobraFlagDefault', (param: Parameter) => cobraFlagDefault(param));
 
-  // Re-export Go type helpers for the CLI (since generated code is Go)
-  handlebars.registerHelper('goType', (type: TypeRef) => typeRefToGo(type));
+  // Go type helper for CLI — prefixes SDK model/enum types with "lms."
+  handlebars.registerHelper('goType', (type: TypeRef) => {
+    const goType = typeRefToGo(type);
+    // Prefix model and enum types with the lms package qualifier
+    if (type.kind === 'model' || type.kind === 'enum') {
+      return `lms.${goType}`;
+    }
+    if (type.kind === 'array' && (type.items.kind === 'model' || type.items.kind === 'enum')) {
+      return `[]lms.${typeRefToGo(type.items)}`;
+    }
+    return goType;
+  });
 
   // Short description for Cobra command (first sentence of description)
   handlebars.registerHelper('shortDesc', (desc: string) => {
@@ -140,7 +150,13 @@ export function registerCLIHelpers(handlebars: typeof import('handlebars')): voi
   // Build the arg-binding lines: courseId := args[0], etc.
   handlebars.registerHelper('argBindings', (method: Method) => {
     return method.pathParams
-      .map((p, i) => `${camelCase(p.name)} := args[${i}]`)
+      .map((p, i) => {
+        const varName = camelCase(p.name);
+        if (p.type.kind === 'enum') {
+          return `${varName} := lms.${p.type.name}(args[${i}])`;
+        }
+        return `${varName} := args[${i}]`;
+      })
       .join('\n\t\t');
   });
 
@@ -151,7 +167,7 @@ export function registerCLIHelpers(handlebars: typeof import('handlebars')): voi
       parts.push(camelCase(p.name));
     }
     if (method.requestBody) {
-      parts.push('body');
+      parts.push('&body');
     }
     return parts.join(', ');
   });
@@ -164,5 +180,27 @@ export function registerCLIHelpers(handlebars: typeof import('handlebars')): voi
   // Check if resource is top-level
   handlebars.registerHelper('isTopLevel', (resource: Resource) => {
     return !resource.path || !resource.path.includes('.');
+  });
+
+  // Check if a resource has any non-upload methods that need a request body
+  handlebars.registerHelper('hasBodyMethods', (resource: Resource) => {
+    return resource.methods?.some((m: Method) => m.requestBody && !m.requestBody.binary);
+  });
+
+  // Non-block version of isUpload for use in subexpressions like {{#unless (isUploadMethod this)}}
+  handlebars.registerHelper('isUploadMethod', (method: Method) => {
+    return !!method.requestBody?.binary;
+  });
+
+  // Check if a resource has any download methods (need "os" import)
+  handlebars.registerHelper('hasDownloadMethods', (resource: Resource) => {
+    return resource.methods?.some((m: Method) => m.response?.binary);
+  });
+
+  // Check if resource needs os import (body methods or download methods)
+  handlebars.registerHelper('needsOsImport', (resource: Resource) => {
+    return resource.methods?.some((m: Method) =>
+      (m.requestBody && !m.requestBody.binary) || m.response?.binary
+    );
   });
 }

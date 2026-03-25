@@ -55,7 +55,7 @@ export class CLIEmitter extends BaseEmitter {
     files.set('sdk-factory', 'internal/sdk/factory.go');
 
     // Per-resource command files
-    const allResources = this.flattenResources();
+    const allResources = this.getReachableResources();
     for (const resource of allResources) {
       files.set(`cmd:${resource.name}`, `cmd/${snakeCase(resource.name)}.go`);
     }
@@ -74,7 +74,7 @@ export class CLIEmitter extends BaseEmitter {
   }
 
   getTemplateContext(templateName: string): any {
-    const allResources = this.flattenResources();
+    const allResources = this.getReachableResources();
     const base = {
       metadata: this.ir.metadata,
       auth: this.ir.auth,
@@ -146,6 +146,50 @@ export class CLIEmitter extends BaseEmitter {
   }
 
   /**
+   * Get resources that are reachable through the Go SDK's canonical resource chain.
+   * Since Go SDK generates one struct per resource name (using the first occurrence's
+   * sub-resources), deeper resources may not be accessible if their parent resource
+   * name was first seen with a different set of sub-resources.
+   */
+  private getReachableResources(): Resource[] {
+    const all = this.flattenResources();
+
+    // Build canonical maps from first occurrence of each resource name.
+    // The Go SDK generates one struct per unique name using the first occurrence's
+    // sub-resources and methods.
+    const canonicalSubresources = new Map<string, Set<string>>();
+    const canonicalMethods = new Map<string, any[]>();
+    for (const r of all) {
+      if (!canonicalSubresources.has(r.name)) {
+        canonicalSubresources.set(r.name, new Set(r.subresources.map(s => s.name)));
+        canonicalMethods.set(r.name, r.methods);
+      }
+    }
+
+    const isReachable = (path: string): boolean => {
+      if (!path) return true;
+      const segments = path.split('.');
+      for (let i = 0; i < segments.length - 1; i++) {
+        const parentSubs = canonicalSubresources.get(segments[i]);
+        if (!parentSubs || !parentSubs.has(segments[i + 1])) {
+          return false;
+        }
+      }
+      return true;
+    };
+
+    return all
+      .filter(r => isReachable(r.path ?? r.name))
+      .map(r => ({
+        ...r,
+        // Use canonical methods (what the Go SDK struct actually has)
+        methods: canonicalMethods.get(r.name) ?? [],
+      }))
+      // Keep only resources that have at least one non-upload method
+      .filter(r => r.methods.some(m => !m.requestBody?.binary));
+  }
+
+  /**
    * Get the parent Cobra command variable name for a resource.
    */
   private getParentCmdVar(resource: Resource): string {
@@ -153,7 +197,7 @@ export class CLIEmitter extends BaseEmitter {
     const parts = path.split('.');
     if (parts.length <= 1) return 'rootCmd';
     const parentName = parts.slice(0, -1).join('.');
-    const parent = this.flattenResources().find(r => (r.path ?? r.name) === parentName);
+    const parent = this.getReachableResources().find(r => (r.path ?? r.name) === parentName);
     return parent ? commandVarName(parent) : 'rootCmd';
   }
 }
