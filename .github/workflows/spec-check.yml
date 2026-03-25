@@ -32,8 +32,8 @@ jobs:
       - name: Check for spec changes
         id: diff
         run: |
-          tsx bin/spec-diff.ts --verbose 2>&1 | tee spec-diff-output.txt || true
-          if tsx bin/spec-diff.ts; then
+          npx tsx bin/spec-diff.ts --verbose 2>&1 | tee spec-diff-output.txt || true
+          if npx tsx bin/spec-diff.ts; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -41,7 +41,7 @@ jobs:
 
       - name: Vendor updated spec
         if: steps.diff.outputs.changed == 'true'
-        run: tsx bin/spec-vendor.ts --from-download
+        run: npx tsx bin/spec-vendor.ts --from-download
 
       - name: Create PR with spec update
         if: steps.diff.outputs.changed == 'true'
