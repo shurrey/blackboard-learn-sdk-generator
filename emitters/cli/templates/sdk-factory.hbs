@@ -17,35 +17,35 @@ type TokenInfo struct {
 
 // ClientWrapper wraps the SDK client with CLI-specific functionality.
 type ClientWrapper struct {
-	Client *lms.Client
-	domain string
-	auth   *lms.OAuth2Client
-	token  *TokenInfo
+	Client     *lms.Client
+	AuthClient *lms.OAuth2Client
+	domain     string
+	token      *TokenInfo
 }
 
 // NewClientWrapper creates a new SDK client wrapper.
 func NewClientWrapper(domain, clientID, clientSecret string) (*ClientWrapper, error) {
 	client := lms.NewClient(domain, clientID, clientSecret)
+	authClient := lms.NewOAuth2Client(domain, clientID, clientSecret, "/learn/api/public/v1/oauth2/token")
 
 	return &ClientWrapper{
-		Client: client,
-		domain: domain,
+		Client:     client,
+		AuthClient: authClient,
+		domain:     domain,
 	}, nil
 }
 
 // Authenticate acquires a two-legged OAuth token.
 func (w *ClientWrapper) Authenticate(ctx context.Context) (*TokenInfo, error) {
-	// The SDK handles authentication automatically on first request.
-	// Force authentication by making a token request.
-	token, err := w.Client.GetToken(ctx)
+	token, err := w.AuthClient.GetToken(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	info := &TokenInfo{
 		Domain:    w.domain,
-		Token:     token.AccessToken,
-		ExpiresAt: token.ExpiresAt,
+		Token:     token,
+		ExpiresAt: time.Now().Add(time.Hour),
 	}
 	w.token = info
 	return info, nil
@@ -53,7 +53,7 @@ func (w *ClientWrapper) Authenticate(ctx context.Context) (*TokenInfo, error) {
 
 // GetAuthURL generates a three-legged OAuth authorization URL with PKCE.
 func (w *ClientWrapper) GetAuthURL(redirectURI, state string) (authURL, codeVerifier string, err error) {
-	result, err := w.Client.GetAuthorizationURL(redirectURI, "", state)
+	result, err := w.AuthClient.GetAuthorizationURL(redirectURI, "", state)
 	if err != nil {
 		return "", "", err
 	}
@@ -62,7 +62,7 @@ func (w *ClientWrapper) GetAuthURL(redirectURI, state string) (authURL, codeVeri
 
 // ExchangeCode exchanges an authorization code for tokens.
 func (w *ClientWrapper) ExchangeCode(ctx context.Context, code, redirectURI, codeVerifier string) error {
-	return w.Client.ExchangeCode(ctx, code, redirectURI, codeVerifier)
+	return w.AuthClient.ExchangeCode(ctx, code, redirectURI, codeVerifier)
 }
 
 // TokenStatus returns the current token info, if available.
@@ -75,5 +75,6 @@ func (w *ClientWrapper) TokenStatus() (*TokenInfo, error) {
 
 // ClearToken clears the cached access token.
 func (w *ClientWrapper) ClearToken() {
+	w.AuthClient.RevokeToken()
 	w.token = nil
 }
