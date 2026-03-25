@@ -12,31 +12,41 @@ from typing import Literal
 
 from fastmcp import FastMCP
 
-from blackboard_lms_mcp.utils.formatters import (
 {{#if (eq category "courses")}}
+from blackboard_lms_mcp.utils.formatters import (
     format_course_list,
     format_course_detail,
     format_calendar_items,
+)
 {{/if}}
 {{#if (eq category "users")}}
+from blackboard_lms_mcp.utils.formatters import (
     format_user_info,
+)
 {{/if}}
 {{#if (eq category "content")}}
+from blackboard_lms_mcp.utils.formatters import (
     format_content_item,
     format_content_tree,
+)
 {{/if}}
 {{#if (eq category "grades")}}
+from blackboard_lms_mcp.utils.formatters import (
     format_student_grades,
     format_grade_submission,
+)
 {{/if}}
 {{#if (eq category "enrollments")}}
+from blackboard_lms_mcp.utils.formatters import (
     format_enrollment_list,
     format_enrollment_action,
+)
 {{/if}}
 {{#if (eq category "announcements")}}
+from blackboard_lms_mcp.utils.formatters import (
     format_announcement,
-{{/if}}
 )
+{{/if}}
 from blackboard_lms_mcp.utils.error_handler import handle_api_error
 
 logger = logging.getLogger(__name__)
