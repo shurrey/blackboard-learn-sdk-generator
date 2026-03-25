@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	lms "{{sdkModule}}"
@@ -16,15 +17,15 @@ type TokenInfo struct {
 
 // ClientWrapper wraps the SDK client with CLI-specific functionality.
 type ClientWrapper struct {
-	Client *learn.Client
+	Client *lms.Client
 	domain string
-	auth   *learn.OAuth2Client
+	auth   *lms.OAuth2Client
 	token  *TokenInfo
 }
 
 // NewClientWrapper creates a new SDK client wrapper.
 func NewClientWrapper(domain, clientID, clientSecret string) (*ClientWrapper, error) {
-	client := learn.NewClient(domain, clientID, clientSecret)
+	client := lms.NewClient(domain, clientID, clientSecret)
 
 	return &ClientWrapper{
 		Client: client,

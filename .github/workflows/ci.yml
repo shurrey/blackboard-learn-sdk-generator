@@ -365,7 +365,7 @@ jobs:
   test-cli:
     name: Test CLI
     runs-on: ubuntu-latest
-    needs: regenerate
+    needs: [regenerate, test-go-sdk]
     steps:
       - uses: actions/checkout@v4
 
